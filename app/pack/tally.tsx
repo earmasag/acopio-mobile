@@ -1,0 +1,172 @@
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRef } from "react";
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { AddManualItemForm } from "@/components/pack/add-manual-item-form";
+import { PackItemList } from "@/components/pack/item-list";
+import { useKeyboardFormScroll } from "@/hooks/use-keyboard-form-scroll";
+import { usePackOrderStore } from "@/stores/pack-order-store";
+import { shortUuid, type ManualItemInput } from "@/types/pack";
+
+const SCROLL_BASE_PADDING = 32;
+
+export default function PackTallyScreen() {
+  const router = useRouter();
+  const scrollRef = useRef<ScrollView>(null);
+  const { orderId } = useLocalSearchParams<{ orderId?: string }>();
+  const order = usePackOrderStore((state) =>
+    orderId
+      ? (state.inProgressOrders.find((entry) => entry.id === orderId) ??
+        state.drafts.find((entry) => entry.id === orderId))
+      : undefined,
+  );
+  const focusOrder = usePackOrderStore((state) => state.focusOrder);
+  const deleteOrder = usePackOrderStore((state) => state.deleteOrder);
+  const addManualItem = usePackOrderStore((state) => state.addManualItem);
+  const updateItemQuantity = usePackOrderStore((state) => state.updateItemQuantity);
+  const removeItem = usePackOrderStore((state) => state.removeItem);
+  const { extraPadding, onFormInputFocus, dismissKeyboard, clearFormKeyboardState } =
+    useKeyboardFormScroll(scrollRef);
+
+  if (!orderId || !order) {
+    return (
+      <SafeAreaView className="flex-1 items-center justify-center bg-acopio-bg px-6">
+        <Text className="mb-4 text-center text-acopio-muted">
+          No se encontró el paquete
+        </Text>
+        <Pressable
+          className="rounded-xl bg-emerald-700 px-6 py-3"
+          onPress={() => router.replace("/pack")}
+        >
+          <Text className="font-semibold text-white">Ir al inicio de empaquetado</Text>
+        </Pressable>
+      </SafeAreaView>
+    );
+  }
+
+  const packageId = orderId;
+
+  function handleAddItem(input: ManualItemInput) {
+    void addManualItem(packageId, input);
+    dismissKeyboard();
+  }
+
+  function confirmDelete() {
+    Alert.alert(
+      "Eliminar paquete",
+      "¿Seguro que deseas eliminar este paquete?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: () => {
+            void deleteOrder(packageId).then(() => router.replace("/pack"));
+          },
+        },
+      ],
+    );
+  }
+
+  return (
+    <SafeAreaView className="flex-1 bg-acopio-bg" edges={["top", "left", "right"]}>
+      <KeyboardAvoidingView
+        className="flex-1"
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 16 : 0}
+      >
+        <ScrollView
+          ref={scrollRef}
+          className="flex-1"
+          contentContainerClassName="px-5 pt-4 grow"
+          contentContainerStyle={{
+            paddingBottom: SCROLL_BASE_PADDING + extraPadding,
+          }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
+          <View className="mb-4 flex-row items-center justify-between">
+            <Pressable
+              className="flex-row items-center gap-1"
+              onPress={() => router.back()}
+            >
+              <MaterialIcons name="arrow-back" size={20} color="#1B4332" />
+              <Text className="text-sm font-semibold text-acopio-accent">Volver</Text>
+            </Pressable>
+            <Pressable
+              className="rounded-xl border border-red-200 p-2"
+              onPress={confirmDelete}
+            >
+              <MaterialIcons name="delete-outline" size={20} color="#9B2226" />
+            </Pressable>
+          </View>
+
+          <View className="mb-4 rounded-2xl border border-emerald-200 bg-white p-4">
+            <Text className="text-xs font-semibold uppercase text-acopio-muted">
+              Paquete en curso
+            </Text>
+            <Text className="mt-1 text-lg font-bold text-acopio-text">
+              Caja: {shortUuid(order.packageUuid)}
+            </Text>
+            <Text className="mt-1 text-sm text-acopio-muted">
+              {order.items.length} artículo
+              {order.items.length === 1 ? "" : "s"}
+            </Text>
+          </View>
+
+          <Pressable
+            className="mb-6 flex-row items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white py-3"
+            onPress={() => {
+              focusOrder(packageId);
+              router.push({
+                pathname: "/pack/scan-box",
+                params: { orderId: packageId },
+              });
+            }}
+          >
+            <MaterialIcons name="qr-code-scanner" size={20} color="#1B4332" />
+            <Text className="font-semibold text-acopio-accent">
+              {order.packageUuid ? "Cambiar caja QR" : "Escanear caja QR"}
+            </Text>
+          </Pressable>
+
+          <Text className="mb-3 text-sm font-semibold uppercase tracking-wide text-acopio-muted">
+            Contenido del paquete
+          </Text>
+
+          <View className="mb-6">
+            <PackItemList
+              items={order.items}
+              onQuantityFocus={clearFormKeyboardState}
+              onUpdateQuantity={(itemId, quantity) => {
+                if (quantity < 1) {
+                  void removeItem(packageId, itemId);
+                  return;
+                }
+                void updateItemQuantity(packageId, itemId, quantity);
+              }}
+              onRemove={(itemId) => void removeItem(packageId, itemId)}
+            />
+          </View>
+
+          <AddManualItemForm
+            onInputFocus={onFormInputFocus}
+            onDismissKeyboard={dismissKeyboard}
+            onAdd={handleAddItem}
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}

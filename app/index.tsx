@@ -43,9 +43,6 @@ export default function HomeScreen() {
               </View>
 
               <View className="flex-1">
-                <Text className="text-xs font-semibold uppercase text-acopio-muted">
-                  {role.step}
-                </Text>
                 <Text className="text-lg font-bold text-acopio-text">
                   {role.title}
                 </Text>

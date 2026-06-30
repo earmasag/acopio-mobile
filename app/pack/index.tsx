@@ -1,15 +1,164 @@
-import { Text, View } from "react-native";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import { Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function PackScreen() {
+import { PackActionCard } from "@/components/pack/action-card";
+import { OrderTabBar } from "@/components/pack/order-tab-bar";
+import { PackOrderCard } from "@/components/pack/order-card";
+import { usePackOrderStore } from "@/stores/pack-order-store";
+
+function confirmDeletePackage(onDelete: () => void) {
+  Alert.alert(
+    "Eliminar paquete",
+    "¿Seguro que deseas eliminar este paquete? Esta acción no se puede deshacer.",
+    [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Eliminar", style: "destructive", onPress: onDelete },
+    ],
+  );
+}
+
+export default function PackHomeScreen() {
   const router = useRouter();
+  const hydrated = usePackOrderStore((state) => state.hydrated);
+  const inProgressOrders = usePackOrderStore((state) => state.inProgressOrders);
+  const drafts = usePackOrderStore((state) => state.drafts);
+  const hydrate = usePackOrderStore((state) => state.hydrate);
+  const createOrder = usePackOrderStore((state) => state.createOrder);
+  const focusOrder = usePackOrderStore((state) => state.focusOrder);
+  const deleteOrder = usePackOrderStore((state) => state.deleteOrder);
+  const parkOrderAsDraft = usePackOrderStore((state) => state.parkOrderAsDraft);
+
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    void hydrate();
+  }, [hydrate]);
+
+  useEffect(() => {
+    if (inProgressOrders.length === 0) {
+      setSelectedOrderId(null);
+      return;
+    }
+
+    const stillExists = inProgressOrders.some(
+      (order) => order.id === selectedOrderId,
+    );
+    if (!stillExists) {
+      setSelectedOrderId(inProgressOrders[0].id);
+    }
+  }, [inProgressOrders, selectedOrderId]);
+
+  const selectedOrder =
+    inProgressOrders.find((order) => order.id === selectedOrderId) ?? null;
+
+  function openTally(orderId: string) {
+    focusOrder(orderId);
+    router.push({ pathname: "/pack/tally", params: { orderId } });
+  }
+
+  function openScanBox(orderId: string) {
+    focusOrder(orderId);
+    router.push({ pathname: "/pack/scan-box", params: { orderId } });
+  }
+
+  function handleNewOrder() {
+    const order = createOrder();
+    setSelectedOrderId(order.id);
+    openTally(order.id);
+  }
+
+  function handleScanNewBox() {
+    const order = createOrder();
+    setSelectedOrderId(order.id);
+    openScanBox(order.id);
+  }
+
+  if (!hydrated) {
+    return (
+      <SafeAreaView className="flex-1 items-center justify-center bg-acopio-bg">
+        <Text className="text-acopio-muted">Cargando…</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <View className="flex-1 items-center justify-center gap-4">
-      <Text className="text-2xl font-bold">Modo Empaquetado</Text>
-      <Text onPress={() => router.back()} className="text-blue-600">
-        ← Volver al inicio
-      </Text>
-    </View>
+    <SafeAreaView className="flex-1 bg-acopio-bg">
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="px-5 pb-8 pt-4"
+        showsVerticalScrollIndicator={false}
+      >
+        <Pressable
+          className="mb-4 flex-row items-center gap-1 self-start"
+          onPress={() => router.back()}
+        >
+          <MaterialIcons name="arrow-back" size={20} color="#1B4332" />
+          <Text className="text-sm font-semibold text-acopio-accent">
+            Volver al inicio
+          </Text>
+        </Pressable>
+
+        <View className="mb-6 overflow-hidden rounded-3xl bg-emerald-800 px-6 py-6 shadow-sm">
+          <Text className="mt-1 text-2xl font-bold text-white">
+            Empaquetado
+          </Text>
+        </View>
+
+        {inProgressOrders.length > 0 && (
+          <View className="mb-6 gap-3">
+            <OrderTabBar
+              orders={inProgressOrders}
+              selectedOrderId={selectedOrderId}
+              onSelect={setSelectedOrderId}
+            />
+            {selectedOrder && (
+              <PackOrderCard
+                order={selectedOrder}
+                onContinue={() => openTally(selectedOrder.id)}
+                onDelete={() =>
+                  confirmDeletePackage(() => void deleteOrder(selectedOrder.id))
+                }
+                onPark={() => void parkOrderAsDraft(selectedOrder.id)}
+              />
+            )}
+          </View>
+        )}
+
+        <Text className="mb-3 text-sm font-semibold uppercase tracking-wide text-acopio-muted">
+          Iniciar paquete
+        </Text>
+
+        <View className="gap-3">
+          <PackActionCard
+            title="Nuevo paquete"
+            description="Crea un paquete y registra los artículos manualmente"
+            icon="add-box"
+            iconClass="bg-emerald-700"
+            onPress={handleNewOrder}
+          />
+          <PackActionCard
+            title="Escanear caja QR"
+            description="Nuevo paquete vinculado a una etiqueta LPN"
+            icon="qr-code-scanner"
+            iconClass="bg-emerald-700"
+            onPress={handleScanNewBox}
+          />
+          <PackActionCard
+            title="Paquetes guardados"
+            description={
+              drafts.length > 0
+                ? `${drafts.length} borrador${drafts.length === 1 ? "" : "es"} disponible${drafts.length === 1 ? "" : "s"}`
+                : "Recupera un empaquetado pendiente"
+            }
+            icon="folder-open"
+            iconClass="bg-emerald-900"
+            onPress={() => router.push("/pack/orders")}
+          />
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
