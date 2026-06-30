@@ -1,7 +1,11 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
+import {
+  KeyboardAwareTextInput,
+  useKeyboardForm,
+} from "@/components/keyboard";
 import { CATEGORIES, type CategoryId } from "@/constants/categories";
 import {
   GARMENT_SIZES,
@@ -16,15 +20,10 @@ import type { ManualItemInput } from "@/types/pack";
 
 type AddManualItemFormProps = {
   onAdd: (input: ManualItemInput) => void;
-  onInputFocus?: () => void;
-  onDismissKeyboard?: () => void;
 };
 
-export function AddManualItemForm({
-  onAdd,
-  onInputFocus,
-  onDismissKeyboard,
-}: AddManualItemFormProps) {
+export function AddManualItemForm({ onAdd }: AddManualItemFormProps) {
+  const { dismissKeyboard } = useKeyboardForm();
   const [categoryId, setCategoryId] = useState<CategoryId>("medicamentos");
   const [name, setName] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -43,7 +42,7 @@ export function AddManualItemForm({
   }
 
   function handleGarmentTypeChange(nextGarment: GarmentTypeId) {
-    onDismissKeyboard?.();
+    dismissKeyboard();
     setGarmentType(nextGarment);
     if (usesNumericShoeSize(nextGarment)) {
       setSize("");
@@ -54,7 +53,7 @@ export function AddManualItemForm({
   }
 
   function handleCategoryChange(nextCategory: CategoryId) {
-    onDismissKeyboard?.();
+    dismissKeyboard();
     setCategoryId(nextCategory);
     setError(null);
     if (nextCategory !== "ropa") {
@@ -197,7 +196,7 @@ export function AddManualItemForm({
               <Text className="mb-2 text-xs font-semibold uppercase text-acopio-muted">
                 Nombre de la prenda
               </Text>
-              <TextInput
+              <KeyboardAwareTextInput
                 className="mb-4 rounded-xl border border-gray-200 bg-acopio-bg px-4 py-3 text-base text-acopio-text"
                 placeholder="Ej. Buzo polar"
                 value={customGarment}
@@ -205,7 +204,6 @@ export function AddManualItemForm({
                   setCustomGarment(value);
                   if (error) setError(null);
                 }}
-                onFocus={onInputFocus}
                 autoCapitalize="sentences"
               />
             </>
@@ -215,7 +213,7 @@ export function AddManualItemForm({
             {isShoeSize ? "Talle" : "Talla"}
           </Text>
           {isShoeSize ? (
-            <TextInput
+            <KeyboardAwareTextInput
               className="mb-4 rounded-xl border border-gray-200 bg-acopio-bg px-4 py-3 text-base text-acopio-text"
               placeholder="Ej. 42"
               value={size}
@@ -223,7 +221,6 @@ export function AddManualItemForm({
                 setSize(value.replace(/[^\d]/g, ""));
                 if (error) setError(null);
               }}
-              onFocus={onInputFocus}
               keyboardType="number-pad"
               maxLength={2}
               returnKeyType="done"
@@ -263,7 +260,7 @@ export function AddManualItemForm({
           <Text className="mb-2 text-xs font-semibold uppercase text-acopio-muted">
             Artículo
           </Text>
-          <TextInput
+          <KeyboardAwareTextInput
             className="mb-4 rounded-xl border border-gray-200 bg-acopio-bg px-4 py-3 text-base text-acopio-text"
             placeholder="Ej. Paracetamol 500 mg"
             value={name}
@@ -271,7 +268,6 @@ export function AddManualItemForm({
               setName(value);
               if (error) setError(null);
             }}
-            onFocus={onInputFocus}
             autoCapitalize="sentences"
           />
         </>
@@ -281,11 +277,7 @@ export function AddManualItemForm({
         Cantidad
       </Text>
       <View className="mb-4">
-        <QuantityInput
-          value={quantity}
-          onChange={setQuantity}
-          onFocus={onInputFocus}
-        />
+        <QuantityInput value={quantity} onChange={setQuantity} formField />
       </View>
 
       {error && <Text className="mb-3 text-sm text-red-700">{error}</Text>}

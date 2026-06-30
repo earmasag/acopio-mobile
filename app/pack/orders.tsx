@@ -67,11 +67,7 @@ export default function PackOrdersScreen() {
                 <View className="mt-3 flex-row gap-2">
                   <Pressable
                     className="flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-emerald-700 py-2.5 active:opacity-90"
-                    onPress={() => {
-                      void resumeDraft(draft.id).then(() =>
-                        router.replace("/pack"),
-                      );
-                    }}
+                    onPress={() => void resumeDraft(draft.id)}
                   >
                     <MaterialIcons name="unarchive" size={20} color="#FFFFFF" />
                     <Text className="font-semibold text-white">Desarchivar</Text>

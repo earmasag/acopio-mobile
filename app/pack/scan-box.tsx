@@ -1,8 +1,10 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+import { KeyboardAwareScreen, KeyboardAwareTextInput } from "@/components/keyboard";
 
 import { usePackOrderStore } from "@/stores/pack-order-store";
 import { parsePackageQr } from "@/types/pack";
@@ -69,7 +71,7 @@ export default function ScanBoxScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-black">
+    <KeyboardAwareScreen className="flex-1 bg-black">
       <View className="flex-1">
         <CameraView
           style={{ flex: 1 }}
@@ -99,7 +101,7 @@ export default function ScanBoxScreen() {
         <Text className="text-sm font-semibold text-acopio-muted">
           Entrada manual (pruebas)
         </Text>
-        <TextInput
+        <KeyboardAwareTextInput
           className="rounded-xl border border-gray-200 px-4 py-3 text-base text-acopio-text"
           placeholder="UUID de la caja"
           value={manualUuid}
@@ -114,6 +116,6 @@ export default function ScanBoxScreen() {
           <Text className="font-semibold text-white">Usar UUID</Text>
         </Pressable>
       </View>
-    </SafeAreaView>
+    </KeyboardAwareScreen>
   );
 }

@@ -9,14 +9,12 @@ type PackItemListProps = {
   items: PackLineItem[];
   onUpdateQuantity: (itemId: string, quantity: number) => void;
   onRemove: (itemId: string) => void;
-  onQuantityFocus?: () => void;
 };
 
 export function PackItemList({
   items,
   onUpdateQuantity,
   onRemove,
-  onQuantityFocus,
 }: PackItemListProps) {
   if (items.length === 0) {
     return (
@@ -70,7 +68,6 @@ export function PackItemList({
                     compact
                     value={item.quantity}
                     onChange={(quantity) => onUpdateQuantity(item.id, quantity)}
-                    onFocus={onQuantityFocus}
                   />
                   <Pressable
                     accessibilityLabel="Eliminar artículo"

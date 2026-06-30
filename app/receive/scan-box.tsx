@@ -6,33 +6,33 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { KeyboardAwareScreen, KeyboardAwareTextInput } from "@/components/keyboard";
 
-import { useLoadTripStore } from "@/stores/load-trip-store";
+import { useReceiveSessionStore } from "@/stores/receive-session-store";
 import { parsePackageQr } from "@/types/pack";
 
-export default function LoadScanBoxScreen() {
+export default function ReceiveScanBoxScreen() {
   const router = useRouter();
-  const { tripId } = useLocalSearchParams<{ tripId?: string }>();
+  const { sessionId } = useLocalSearchParams<{ sessionId?: string }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [manualUuid, setManualUuid] = useState("");
   const [scanned, setScanned] = useState(false);
-  const trip = useLoadTripStore((state) =>
-    tripId
-      ? state.inProgressTrips.find((entry) => entry.id === tripId)
+  const session = useReceiveSessionStore((state) =>
+    sessionId
+      ? state.inProgressSessions.find((entry) => entry.id === sessionId)
       : undefined,
   );
-  const addBox = useLoadTripStore((state) => state.addBox);
+  const addBox = useReceiveSessionStore((state) => state.addBox);
 
   function assignBox(raw: string) {
-    if (!tripId) return;
+    if (!sessionId) return;
 
     const packageUuid = parsePackageQr(raw);
     if (!packageUuid) return;
 
-    const added = addBox(tripId, packageUuid);
+    const added = addBox(sessionId, packageUuid);
     if (!added) {
       Alert.alert(
         "Caja no agregada",
-        "Verifica el código o si ya fue escaneada en este viaje.",
+        "Verifica el código o si ya fue escaneada en esta recepción.",
       );
       setScanned(false);
       return;
@@ -41,17 +41,17 @@ export default function LoadScanBoxScreen() {
     router.back();
   }
 
-  if (!tripId || !trip) {
+  if (!sessionId || !session) {
     return (
       <SafeAreaView className="flex-1 items-center justify-center bg-acopio-bg px-6">
         <Text className="mb-4 text-center text-acopio-muted">
-          No se encontró la carga seleccionada
+          No se encontró la recepción seleccionada
         </Text>
         <Pressable
-          className="rounded-xl bg-sky-700 px-6 py-3"
-          onPress={() => router.replace("/load")}
+          className="rounded-xl bg-amber-700 px-6 py-3"
+          onPress={() => router.replace("/receive")}
         >
-          <Text className="font-semibold text-white">Ir a carga</Text>
+          <Text className="font-semibold text-white">Ir a recepción</Text>
         </Pressable>
       </SafeAreaView>
     );
@@ -73,13 +73,13 @@ export default function LoadScanBoxScreen() {
             Necesitamos acceso a la cámara para escanear el QR de la caja
           </Text>
           <Pressable
-            className="rounded-xl bg-sky-700 px-6 py-3"
+            className="rounded-xl bg-amber-700 px-6 py-3"
             onPress={requestPermission}
           >
             <Text className="font-semibold text-white">Permitir cámara</Text>
           </Pressable>
           <Pressable onPress={() => router.back()}>
-            <Text className="text-sky-700">Volver</Text>
+            <Text className="text-amber-700">Volver</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -108,7 +108,7 @@ export default function LoadScanBoxScreen() {
           </Pressable>
           <Text className="text-lg font-bold text-white">Escanear caja</Text>
           <Text className="text-sm text-white/80">
-            Placa {trip.plate} · registra la caja al subirla
+            Placa {session.plate} · confirma la caja al recibirla
           </Text>
         </View>
       </View>
@@ -126,7 +126,7 @@ export default function LoadScanBoxScreen() {
           autoCorrect={false}
         />
         <Pressable
-          className="items-center rounded-xl bg-sky-700 py-3 active:opacity-90"
+          className="items-center rounded-xl bg-amber-700 py-3 active:opacity-90"
           onPress={() => assignBox(manualUuid)}
         >
           <Text className="font-semibold text-white">Usar UUID</Text>

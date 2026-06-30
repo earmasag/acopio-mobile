@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
+
+import { useKeyboardForm } from "@/components/keyboard";
 
 type QuantityInputProps = {
   value: number;
@@ -8,6 +10,8 @@ type QuantityInputProps = {
   onBlur?: () => void;
   min?: number;
   compact?: boolean;
+  /** Registra el foco como campo del formulario inferior (scroll automático). */
+  formField?: boolean;
 };
 
 export function QuantityInput({
@@ -17,7 +21,9 @@ export function QuantityInput({
   onBlur,
   min = 1,
   compact = false,
+  formField = false,
 }: QuantityInputProps) {
+  const { onInputFocus, clearFormKeyboardState } = useKeyboardForm();
   const [draft, setDraft] = useState(String(value));
 
   useEffect(() => {
@@ -37,6 +43,15 @@ export function QuantityInput({
     commitDraft();
     onBlur?.();
   }
+
+  const handleFocus = useCallback(() => {
+    if (formField) {
+      onInputFocus();
+    } else {
+      clearFormKeyboardState();
+    }
+    onFocus?.();
+  }, [clearFormKeyboardState, formField, onFocus, onInputFocus]);
 
   const buttonClass = compact
     ? "h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-white"
@@ -60,7 +75,7 @@ export function QuantityInput({
         keyboardType="number-pad"
         value={draft}
         onChangeText={setDraft}
-        onFocus={onFocus}
+        onFocus={handleFocus}
         onBlur={handleBlur}
         onSubmitEditing={commitDraft}
         selectTextOnFocus

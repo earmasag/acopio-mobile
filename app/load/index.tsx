@@ -4,13 +4,11 @@ import { useEffect, useState } from "react";
 import {
   Alert,
   Pressable,
-  ScrollView,
   Text,
-  TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
+import { KeyboardAwareScrollScreen, KeyboardAwareTextInput } from "@/components/keyboard";
 import { LoadActionCard } from "@/components/load/action-card";
 import { LoadActiveTripCard } from "@/components/load/active-trip-card";
 import { LoadTripTabBar } from "@/components/load/trip-tab-bar";
@@ -94,19 +92,14 @@ export default function LoadHomeScreen() {
 
   if (!hydrated) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-acopio-bg">
+      <KeyboardAwareScrollScreen contentContainerClassName="flex-1 items-center justify-center px-5">
         <Text className="text-acopio-muted">Cargando…</Text>
-      </SafeAreaView>
+      </KeyboardAwareScrollScreen>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-acopio-bg">
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="px-5 pb-8 pt-4"
-        showsVerticalScrollIndicator={false}
-      >
+    <KeyboardAwareScrollScreen contentContainerClassName="px-5 pb-8 pt-4">
         <Pressable
           className="mb-4 flex-row items-center gap-1 self-start"
           onPress={() => router.back()}
@@ -147,7 +140,7 @@ export default function LoadHomeScreen() {
         <Text className="mb-2 text-xs font-semibold uppercase text-acopio-muted">
           Placa del vehículo *
         </Text>
-        <TextInput
+        <KeyboardAwareTextInput
           className="mb-1 rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-acopio-text"
           placeholder="Ej. ABC-123"
           value={plate}
@@ -190,7 +183,6 @@ export default function LoadHomeScreen() {
             />
           )}
         </View>
-      </ScrollView>
-    </SafeAreaView>
+    </KeyboardAwareScrollScreen>
   );
 }
