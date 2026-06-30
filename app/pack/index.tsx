@@ -150,7 +150,7 @@ export default function PackHomeScreen() {
             title="Paquetes guardados"
             description={
               drafts.length > 0
-                ? `${drafts.length} borrador${drafts.length === 1 ? "" : "es"} disponible${drafts.length === 1 ? "" : "s"}`
+                ? `${drafts.length} paquete${drafts.length === 1 ? "" : "s"} para desarchivar`
                 : "Recupera un empaquetado pendiente"
             }
             icon="folder-open"

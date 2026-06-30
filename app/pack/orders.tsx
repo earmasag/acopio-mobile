@@ -38,7 +38,7 @@ export default function PackOrdersScreen() {
           Paquetes guardados
         </Text>
         <Text className="mb-6 text-sm text-acopio-muted">
-          Borradores apartados. Al cargarlos vuelven a paquetes en curso.
+          Paquetes apartados. Desarchívalos para retomarlos en paquetes en curso.
         </Text>
 
         {drafts.length === 0 ? (
@@ -66,17 +66,15 @@ export default function PackOrdersScreen() {
                 </Text>
                 <View className="mt-3 flex-row gap-2">
                   <Pressable
-                    className="flex-1 items-center rounded-xl bg-emerald-700 py-2.5"
+                    className="flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-emerald-700 py-2.5 active:opacity-90"
                     onPress={() => {
                       void resumeDraft(draft.id).then(() =>
-                        router.replace({
-                          pathname: "/pack/tally",
-                          params: { orderId: draft.id },
-                        }),
+                        router.replace("/pack"),
                       );
                     }}
                   >
-                    <Text className="font-semibold text-white">Cargar</Text>
+                    <MaterialIcons name="unarchive" size={20} color="#FFFFFF" />
+                    <Text className="font-semibold text-white">Desarchivar</Text>
                   </Pressable>
                   <Pressable
                     className="items-center justify-center rounded-xl border border-red-200 px-4 py-2.5"
