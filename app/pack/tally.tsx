@@ -71,6 +71,13 @@ export default function PackTallyScreen() {
             params: { orderId: packageId },
           });
         }}
+        onScanBarcode={() => {
+          focusOrder(packageId);
+          router.push({
+            pathname: "/pack/scan-barcode",
+            params: { orderId: packageId },
+          });
+        }}
         onDelete={confirmDelete}
         onAddItem={(input) => void addManualItem(packageId, input)}
         onUpdateQuantity={(itemId, quantity) => {
@@ -90,6 +97,7 @@ type PackTallyContentProps = {
   order: PackOrder;
   onBack: () => void;
   onScanBox: () => void;
+  onScanBarcode: () => void;
   onDelete: () => void;
   onAddItem: (input: ManualItemInput) => void;
   onUpdateQuantity: (itemId: string, quantity: number) => void;
@@ -100,6 +108,7 @@ function PackTallyContent({
   order,
   onBack,
   onScanBox,
+  onScanBarcode,
   onDelete,
   onAddItem,
   onUpdateQuantity,
@@ -140,15 +149,27 @@ function PackTallyContent({
         </Text>
       </View>
 
-      <Pressable
-        className="mb-6 flex-row items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white py-3"
-        onPress={onScanBox}
-      >
-        <MaterialIcons name="qr-code-scanner" size={20} color="#1B4332" />
-        <Text className="font-semibold text-acopio-accent">
-          {order.packageUuid ? "Cambiar caja QR" : "Escanear caja QR"}
-        </Text>
-      </Pressable>
+      <View className="mb-6 flex-row gap-3">
+        <Pressable
+          className="flex-1 flex-row items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white py-3 active:bg-emerald-50"
+          onPress={onScanBox}
+        >
+          <MaterialIcons name="qr-code-scanner" size={20} color="#1B4332" />
+          <Text className="text-xs font-semibold text-acopio-accent sm:text-sm">
+            {order.packageUuid ? "Cambiar caja QR" : "Vincular caja QR"}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          className="flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-emerald-700 py-3 shadow-sm active:opacity-90"
+          onPress={onScanBarcode}
+        >
+          <MaterialIcons name="barcode-reader" size={20} color="#FFFFFF" />
+          <Text className="text-xs font-semibold text-white sm:text-sm">
+            Escanear artículo
+          </Text>
+        </Pressable>
+      </View>
 
       <Text className="mb-3 text-sm font-semibold uppercase tracking-wide text-acopio-muted">
         Contenido del paquete

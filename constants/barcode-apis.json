@@ -1,0 +1,96 @@
+{
+  "architecture_version": "3.0",
+  "global_settings": {
+    "default_timeout_seconds": 12.0,
+    "retry_policy": {
+      "max_retries": 2,
+      "backoff_factor": 1.5
+    }
+  },
+  "apis": {
+    "open_food_facts": {
+      "base_url": "https://world.openfoodfacts.org/api/v3/product/{barcode}.json",
+      "method": "GET",
+      "headers": {
+        "User-Agent": "BuscadorCodigoBarras/1.0 (soporte@buscadorbarras.com)"
+      },
+      "routing_rules": {
+        "allowed_categories": ["food", "beverage"],
+        "excluded_prefixes": ["978", "979"]
+      },
+      "optimization": {
+        "use_fields_filter": true,
+        "fields": ["product_name", "brands", "image_url", "ingredients_text", "nutriments", "nutriscore_grade"]
+      }
+    },
+    "open_beauty_facts": {
+      "base_url": "https://world.openbeautyfacts.org/api/v2/product/{barcode}.json",
+      "method": "GET",
+      "headers": {
+        "User-Agent": "BuscadorCodigoBarras/1.0 (soporte@buscadorbarras.com)"
+      },
+      "routing_rules": {
+        "allowed_categories": ["cosmetics", "personal_care"],
+        "excluded_prefixes": ["978", "979"]
+      },
+      "optimization": {
+        "use_fields_filter": false
+      }
+    },
+    "open_pet_food_facts": {
+      "base_url": "https://world.openpetfoodfacts.org/api/v2/product/{barcode}.json",
+      "method": "GET",
+      "headers": {
+        "User-Agent": "BuscadorCodigoBarras/1.0 (soporte@buscadorbarras.com)"
+      },
+      "routing_rules": {
+        "allowed_categories": ["pet_food", "pet_care"],
+        "excluded_prefixes": ["978", "979"]
+      },
+      "optimization": {
+        "use_fields_filter": false
+      }
+    },
+    "open_products_facts": {
+      "base_url": "https://world.openproductsfacts.org/api/v2/product/{barcode}.json",
+      "method": "GET",
+      "headers": {
+        "User-Agent": "BuscadorCodigoBarras/1.0 (soporte@buscadorbarras.com)"
+      },
+      "routing_rules": {
+        "allowed_categories": ["general_merchandise"],
+        "excluded_prefixes": ["978", "979"]
+      },
+      "optimization": {
+        "use_fields_filter": false
+      }
+    },
+    "upcitemdb_trial": {
+      "base_url": "https://api.upcitemdb.com/prod/trial/lookup?upc={barcode}",
+      "method": "GET",
+      "headers": {
+        "Accept": "application/json"
+      },
+      "routing_rules": {
+        "allowed_categories": ["all"],
+        "execution_policy": "client_side_only"
+      },
+      "rate_limiting": {
+        "max_requests_per_day_per_ip": 100,
+        "burst_limit_seconds": 30,
+        "max_burst_requests": 15
+      }
+    },
+    "open_library": {
+      "base_url": "https://openlibrary.org/api/books?bibkeys=ISBN:{barcode}&format=json&jscmd=data",
+      "method": "GET",
+      "headers": {
+        "Accept": "application/json"
+      },
+      "routing_rules": {
+        "required_prefixes": ["978", "979"],
+        "allowed_categories": ["books"]
+      }
+    }
+  }
+}

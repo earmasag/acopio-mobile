@@ -16,6 +16,8 @@ export type ManualItemInput = {
   categoryId: CategoryId;
   name: string;
   quantity: number;
+  barcode?: string;
+  source?: "scan" | "manual";
   garmentType?: GarmentTypeId | string;
   size?: string;
 };
@@ -77,7 +79,8 @@ export function createManualLineItem(input: ManualItemInput): PackLineItem {
     categoryId: input.categoryId,
     name: input.name.trim(),
     quantity: input.quantity,
-    source: "manual",
+    barcode: input.barcode,
+    source: input.source ?? "manual",
     garmentType: input.garmentType,
     size: input.size,
   };
