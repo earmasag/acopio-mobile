@@ -64,6 +64,13 @@ export default function PackTallyScreen() {
       <PackTallyContent
         order={order}
         onBack={() => router.back()}
+        onGenerateQr={() => {
+          focusOrder(packageId);
+          router.push({
+            pathname: "/pack/generate-qr",
+            params: { orderId: packageId },
+          });
+        }}
         onScanBox={() => {
           focusOrder(packageId);
           router.push({
@@ -96,6 +103,7 @@ export default function PackTallyScreen() {
 type PackTallyContentProps = {
   order: PackOrder;
   onBack: () => void;
+  onGenerateQr: () => void;
   onScanBox: () => void;
   onScanBarcode: () => void;
   onDelete: () => void;
@@ -107,6 +115,7 @@ type PackTallyContentProps = {
 function PackTallyContent({
   order,
   onBack,
+  onGenerateQr,
   onScanBox,
   onScanBarcode,
   onDelete,
@@ -149,24 +158,34 @@ function PackTallyContent({
         </Text>
       </View>
 
-      <View className="mb-6 flex-row gap-3">
+      <View className="mb-6 flex-row gap-2">
         <Pressable
-          className="flex-1 flex-row items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white py-3 active:bg-emerald-50"
-          onPress={onScanBox}
+          className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-white py-3 active:bg-emerald-50"
+          onPress={onGenerateQr}
         >
-          <MaterialIcons name="qr-code-scanner" size={20} color="#1B4332" />
-          <Text className="text-xs font-semibold text-acopio-accent sm:text-sm">
-            {order.packageUuid ? "Cambiar caja QR" : "Vincular caja QR"}
+          <MaterialIcons name="qr-code" size={18} color="#1B4332" />
+          <Text className="text-xs font-semibold text-acopio-accent">
+            {order.packageUuid ? "Ver QR" : "Generar QR"}
           </Text>
         </Pressable>
 
         <Pressable
-          className="flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-emerald-700 py-3 shadow-sm active:opacity-90"
+          className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-white py-3 active:bg-emerald-50"
+          onPress={onScanBox}
+        >
+          <MaterialIcons name="qr-code-scanner" size={18} color="#1B4332" />
+          <Text className="text-xs font-semibold text-acopio-accent">
+            {order.packageUuid ? "Cambiar QR" : "Escanear QR"}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          className="flex-[1.2] flex-row items-center justify-center gap-1.5 rounded-xl bg-emerald-700 py-3 shadow-sm active:opacity-90"
           onPress={onScanBarcode}
         >
-          <MaterialIcons name="barcode-reader" size={20} color="#FFFFFF" />
-          <Text className="text-xs font-semibold text-white sm:text-sm">
-            Escanear artículo
+          <MaterialIcons name="barcode-reader" size={18} color="#FFFFFF" />
+          <Text className="text-xs font-semibold text-white">
+            + Artículo
           </Text>
         </Pressable>
       </View>

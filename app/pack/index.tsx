@@ -76,6 +76,10 @@ export default function PackHomeScreen() {
     openScanBox(order.id);
   }
 
+  function handleGenerateNewBoxQr() {
+    router.push("/pack/generate-qr");
+  }
+
   if (!hydrated) {
     return (
       <SafeAreaView className="flex-1 items-center justify-center bg-acopio-bg">
@@ -133,18 +137,25 @@ export default function PackHomeScreen() {
 
         <View className="gap-3">
           <PackActionCard
-            title="Nuevo paquete"
-            description="Crea un paquete y registra los artículos manualmente"
-            icon="add-box"
-            iconClass="bg-emerald-700"
-            onPress={handleNewOrder}
+            title="Generar Etiqueta QR"
+            description="Crea e imprime un QR único para identificar la caja física"
+            icon="qr-code"
+            iconClass="bg-emerald-800"
+            onPress={handleGenerateNewBoxQr}
           />
           <PackActionCard
             title="Escanear caja QR"
-            description="Nuevo paquete vinculado a una etiqueta LPN"
+            description="Nuevo paquete vinculado a una etiqueta LPN física"
             icon="qr-code-scanner"
             iconClass="bg-emerald-700"
             onPress={handleScanNewBox}
+          />
+          <PackActionCard
+            title="Nuevo paquete manual"
+            description="Crea un paquete y registra los artículos sin QR inicial"
+            icon="add-box"
+            iconClass="bg-emerald-700"
+            onPress={handleNewOrder}
           />
           <PackActionCard
             title="Paquetes guardados"
