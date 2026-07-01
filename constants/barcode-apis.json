@@ -5,6 +5,12 @@
     "retry_policy": {
       "max_retries": 2,
       "backoff_factor": 1.5
+    },
+    "ai_cleaner": {
+      "enabled": true,
+      "provider": "groq",
+      "api_key": "",
+      "model": "llama-3.1-8b-instant"
     }
   },
   "apis": {

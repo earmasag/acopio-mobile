@@ -501,6 +501,80 @@ export function cleanAndSummarizeProductName(rawTitle: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
+async function cleanAndCategorizeWithGroq(
+  rawText: string
+): Promise<{ name: string; categoryId: CategoryId } | null> {
+  const aiConfig = (apiConfig as any).global_settings?.ai_cleaner;
+  const apiKey = process.env.EXPO_PUBLIC_GROQ_API_KEY || aiConfig?.api_key;
+
+  if (!aiConfig?.enabled || !apiKey) {
+    console.warn("[GroqAI] Omitiendo limpieza por IA: ai_cleaner está deshabilitado o falta la api_key en .env/configuración.");
+    return null;
+  }
+
+  try {
+    console.log(`[GroqAI] Enviando texto a limpiar (${rawText.slice(0, 45)}...)...`);
+    const response = await fetchWithRetryAndTimeout(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: aiConfig.model || "llama-3.1-8b-instant",
+          messages: [
+            {
+              role: "system",
+              content: `Eres catalogador farmacéutico en LatAm. Recibes un título/texto crudo escaneado.
+Devuelve SOLO un JSON con 2 claves:
+1. "name": Nombre comercial en Title Case. DEBE INCLUIR SIEMPRE: principio activo/marca + concentración (ej. 100mg, 500ml) + presentación/cantidad (ej. 10 Comprimidos, Caja x 30 Tabletas). Elimina tiendas (Farmatodo, Locatel), "Descripción", "Comprar" y párrafos enciclopédicos.
+Ejemplos: "Difenac Diclofenac Sódico 100 mg x 10 Comprimidos", "Loratadina 10 mg x 10 Tabletas", "Metformina 850 mg Caja x 30 Tabletas", "Jarabe Jengimiel 120 ml", "Alcohol Isopropílico 500 ml".
+2. "categoryId": Uno entre: "comida", "bebida", "medicamentos", "insumos_medicos", "ropa", "juguetes". Fármaco -> "medicamentos". Alcohol/gasa/jeringa -> "insumos_medicos".`,
+            },
+            { role: "user", content: rawText },
+          ],
+          temperature: 0.1,
+          response_format: { type: "json_object" },
+        }),
+      },
+      5.0,
+      1,
+      1.5
+    );
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => "Sin cuerpo de error");
+      console.error(`[GroqAI] Falló petición a Groq (HTTP ${response.status}): ${errorBody}`);
+      return null;
+    }
+
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (content) {
+      try {
+        const parsed = JSON.parse(content);
+        if (parsed.name && parsed.categoryId) {
+          return {
+            name: parsed.name.trim(),
+            categoryId: parsed.categoryId as CategoryId,
+          };
+        } else {
+          console.warn("[GroqAI] El JSON devuelto no contiene las claves 'name' o 'categoryId':", parsed);
+        }
+      } catch (parseErr) {
+        console.error("[GroqAI] Error al parsear JSON devuelto por Groq:", content, parseErr);
+      }
+    } else {
+      console.warn("[GroqAI] Groq respondió con un content vacío o estructura incorrecta:", data);
+    }
+  } catch (error: any) {
+    console.error("[GroqAI] Excepción / Timeout en la llamada a Groq Cloud:", error?.message || error);
+  }
+  return null;
+}
+
 async function queryWebSearchFallback(barcodeCandidate: string): Promise<ApiProductMatch | null> {
   try {
     const response = await fetchWithRetryAndTimeout(
@@ -528,7 +602,30 @@ async function queryWebSearchFallback(barcodeCandidate: string): Promise<ApiProd
       html.match(/<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/i);
 
     if (titleMatch && titleMatch[1]) {
-      const cleanTitle = cleanAndSummarizeProductName(titleMatch[1]);
+      const rawExtractedText = titleMatch[1]
+        .replace(/<[^>]+>/g, "")
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, "&")
+        .replace(/&#x27;/g, "'")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      // 1. Intentar primero con la IA en la nube (Groq Llama 3.1) en ~150ms
+      const aiResult = await cleanAndCategorizeWithGroq(rawExtractedText);
+      if (aiResult) {
+        console.log(`[GroqAI] IA limpió producto con éxito: "${aiResult.name}" [${aiResult.categoryId}]`);
+        return {
+          name: aiResult.name,
+          categoryId: aiResult.categoryId,
+          barcode: barcodeCandidate,
+          sourceApi: "web_search_fallback",
+        };
+      }
+
+      // 2. Respaldo local si la IA estuviese deshabilitada o sin red
+      const cleanTitle = cleanAndSummarizeProductName(rawExtractedText);
 
       if (cleanTitle.length > 3 && !/^\d+$/.test(cleanTitle)) {
         const lower = cleanTitle.toLowerCase();
@@ -590,71 +687,93 @@ async function queryWebSearchFallback(barcodeCandidate: string): Promise<ApiProd
   return null;
 }
 
+const inFlightSearches = new Map<string, Promise<ApiProductMatch[]>>();
+
 export async function searchBarcodePublicApis(barcode: string): Promise<ApiProductMatch[]> {
   const cleanBarcode = barcode.trim().replace(/[- ]/g, "");
-  const candidates = getBarcodeCandidates(cleanBarcode);
-  const apis = apiConfig.apis || {};
 
-  const authorizedApis = Object.entries(apis).filter(([_, definition]) => {
-    return shouldQueryApi(cleanBarcode, (definition as any).routing_rules);
-  });
-
-  // Nivel 1: APIs 100% abiertas sin límite diario de peticiones
-  const tier1Apis = authorizedApis.filter(([_, def]) => !(def as any).rate_limiting);
-  // Nivel 2: APIs con cuotas de uso (ej. upcitemdb_trial) como respaldo final
-  const tier2Apis = authorizedApis.filter(([_, def]) => !!(def as any).rate_limiting);
-
-  // En Nivel 1, consultamos TODAS las APIs con TODOS los candidatos (12 y 13 dígitos) en simultáneo
-  const tier1Promises: Promise<ApiProductMatch | null>[] = [];
-  for (const [key, def] of tier1Apis) {
-    for (const candidate of candidates) {
-      tier1Promises.push(querySingleApiWithCandidate(key, def, candidate));
-    }
+  if (inFlightSearches.has(cleanBarcode)) {
+    console.log(`[BarcodeSearch] Petición en curso o reciente detectada para ${cleanBarcode}, evitando duplicado...`);
+    return inFlightSearches.get(cleanBarcode)!;
   }
 
-  const tier1Results = await Promise.all(tier1Promises);
-  let validResults = tier1Results.filter((r): r is ApiProductMatch => r !== null && !!r.name);
+  const searchPromise = (async () => {
+    const candidates = getBarcodeCandidates(cleanBarcode);
+    const apis = apiConfig.apis || {};
 
-  // Si las APIs sin límite no arrojaron ninguna coincidencia, consultamos las APIs con cuota (Nivel 2)
-  if (validResults.length === 0 && tier2Apis.length > 0) {
-    console.log("[BarcodeSearch] Sin coincidencias en Nivel 1. Consultando APIs de Nivel 2 (con cuota)...");
-    for (const [key, def] of tier2Apis) {
+    const authorizedApis = Object.entries(apis).filter(([_, definition]) => {
+      return shouldQueryApi(cleanBarcode, (definition as any).routing_rules);
+    });
+
+    // Nivel 1: APIs 100% abiertas sin límite diario de peticiones
+    const tier1Apis = authorizedApis.filter(([_, def]) => !(def as any).rate_limiting);
+    // Nivel 2: APIs con cuotas de uso (ej. upcitemdb_trial) como respaldo final
+    const tier2Apis = authorizedApis.filter(([_, def]) => !!(def as any).rate_limiting);
+
+    // En Nivel 1, consultamos TODAS las APIs con TODOS los candidatos (12 y 13 dígitos) en simultáneo
+    const tier1Promises: Promise<ApiProductMatch | null>[] = [];
+    for (const [key, def] of tier1Apis) {
       for (const candidate of candidates) {
-        const match = await querySingleApiWithCandidate(key, def, candidate);
-        if (match && match.name) {
-          validResults.push(match);
-          break; // Detenemos los candidatos para proteger la cuota
+        tier1Promises.push(querySingleApiWithCandidate(key, def, candidate));
+      }
+    }
+
+    const tier1Results = await Promise.all(tier1Promises);
+    let validResults = tier1Results.filter((r): r is ApiProductMatch => r !== null && !!r.name);
+
+    // Si las APIs sin límite no arrojaron ninguna coincidencia, consultamos las APIs con cuota (Nivel 2)
+    if (validResults.length === 0 && tier2Apis.length > 0) {
+      console.log("[BarcodeSearch] Sin coincidencias en Nivel 1. Consultando APIs de Nivel 2 (con cuota)...");
+      for (const [key, def] of tier2Apis) {
+        for (const candidate of candidates) {
+          const match = await querySingleApiWithCandidate(key, def, candidate);
+          if (match && match.name) {
+            validResults.push(match);
+            break; // Detenemos los candidatos para proteger la cuota
+          }
         }
       }
     }
-  }
 
-  // Nivel 3: Si Niveles 1 y 2 fallan, realizamos búsqueda web ligera HTML para catálogos locales/farmacias de LatAm
-  if (validResults.length === 0) {
-    console.log("[BarcodeSearch] Sin coincidencias en Niveles 1 y 2. Consultando Nivel 3 (Búsqueda Web)...");
-    for (const candidate of candidates) {
-      const match = await queryWebSearchFallback(candidate);
-      if (match && match.name) {
-        validResults.push(match);
-        break;
+    // Nivel 3: Si Niveles 1 y 2 fallan, realizamos búsqueda web ligera HTML para catálogos locales/farmacias de LatAm
+    if (validResults.length === 0) {
+      console.log("[BarcodeSearch] Sin coincidencias en Niveles 1 y 2. Consultando Nivel 3 (Búsqueda Web)...");
+      for (const candidate of candidates) {
+        const match = await queryWebSearchFallback(candidate);
+        if (match && match.name) {
+          validResults.push(match);
+          break;
+        }
       }
     }
-  }
 
-  // Deduplicación y normalización final inteligente
-  const uniqueMatches: ApiProductMatch[] = [];
-  const seenNames = new Set<string>();
+    // Deduplicación y normalización final inteligente
+    const uniqueMatches: ApiProductMatch[] = [];
+    const seenNames = new Set<string>();
 
-  for (const match of validResults) {
-    match.name = cleanAndSummarizeProductName(match.name);
-    if (!match.name || match.name.length < 3) continue;
+    for (const match of validResults) {
+      if (match.sourceApi !== "web_search_fallback") {
+        match.name = cleanAndSummarizeProductName(match.name);
+      }
+      if (!match.name || match.name.length < 3) continue;
 
-    const normalized = match.name.toLowerCase().trim();
-    if (!seenNames.has(normalized)) {
-      seenNames.add(normalized);
-      uniqueMatches.push(match);
+      const normalized = match.name.toLowerCase().trim();
+      if (!seenNames.has(normalized)) {
+        seenNames.add(normalized);
+        uniqueMatches.push(match);
+      }
     }
-  }
 
-  return uniqueMatches;
+    return uniqueMatches;
+  })();
+
+  inFlightSearches.set(cleanBarcode, searchPromise);
+
+  try {
+    return await searchPromise;
+  } finally {
+    setTimeout(() => {
+      inFlightSearches.delete(cleanBarcode);
+    }, 4000);
+  }
 }
