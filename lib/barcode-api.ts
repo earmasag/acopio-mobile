@@ -173,7 +173,15 @@ function mapToAppCategory(apiKey: string, rawCategoryText?: string, productName?
     searchStr.includes("jabon") ||
     searchStr.includes("insumo") ||
     searchStr.includes("beauty") ||
-    searchStr.includes("cosmetic")
+    searchStr.includes("cosmetic") ||
+    searchStr.includes("alcohol") ||
+    searchStr.includes("desinfect") ||
+    searchStr.includes("sanitiz") ||
+    searchStr.includes("limpi") ||
+    searchStr.includes("antiseptic") ||
+    searchStr.includes("gasa") ||
+    searchStr.includes("jeringa") ||
+    searchStr.includes("guante")
   ) {
     return "insumos_medicos";
   }
@@ -199,15 +207,52 @@ function mapToAppCategory(apiKey: string, rawCategoryText?: string, productName?
     return "juguetes";
   }
 
+  // Fallback inteligente basado en la especialidad (allowed_categories) de la API
+  const apiDef = (apiConfig.apis as any)[apiKey];
+  if (apiDef?.routing_rules?.allowed_categories && Array.isArray(apiDef.routing_rules.allowed_categories)) {
+    const categories = apiDef.routing_rules.allowed_categories;
+    for (const cat of categories) {
+      if (["comida", "bebida", "medicamentos", "insumos_medicos", "ropa", "juguetes"].includes(cat)) {
+        return cat as CategoryId;
+      }
+    }
+  }
+
   return "comida";
 }
 
-async function querySingleApi(apiKey: string, apiDefinition: any, barcode: string): Promise<ApiProductMatch | null> {
+function getBarcodeCandidates(barcode: string): string[] {
+  const clean = barcode.trim().replace(/[- ]/g, "");
+  const candidates = new Set<string>([clean]);
+
+  // Si tiene 12 dígitos (UPC-A), generar también versión EAN-13 (13 dígitos agregando un 0)
+  if (clean.length === 12 && /^\d+$/.test(clean)) {
+    candidates.add(`0${clean}`);
+  }
+  // Si tiene 13 dígitos y empieza por 0, generar también versión UPC-A (12 dígitos sin el 0)
+  else if (clean.length === 13 && clean.startsWith("0") && /^\d+$/.test(clean)) {
+    candidates.add(clean.slice(1));
+  }
+
+  // Si es un código EAN-13 farmacéutico español (empieza con 847000), extraer el Código Nacional (CN de 6 dígitos)
+  if (clean.length === 13 && clean.startsWith("847000") && /^\d+$/.test(clean)) {
+    candidates.add(clean.slice(6, 12));
+  }
+
+  // Si es un código de 6 o 7 dígitos, generar también posible prefijo farmacéutico EAN-13
+  if (/^\d{6,7}$/.test(clean)) {
+    candidates.add(`847000${clean}`);
+  }
+
+  return Array.from(candidates);
+}
+
+async function querySingleApiWithCandidate(apiKey: string, apiDefinition: any, barcodeCandidate: string): Promise<ApiProductMatch | null> {
   const globalTimeout = apiConfig.global_settings?.default_timeout_seconds ?? 12.0;
   const maxRetries = apiConfig.global_settings?.retry_policy?.max_retries ?? 2;
   const backoffFactor = apiConfig.global_settings?.retry_policy?.backoff_factor ?? 1.5;
 
-  let url = apiDefinition.base_url.replace("{barcode}", barcode);
+  let url = apiDefinition.base_url.replace("{barcode}", barcodeCandidate);
 
   if (apiDefinition.optimization?.use_fields_filter && Array.isArray(apiDefinition.optimization.fields)) {
     const separator = url.includes("?") ? "&" : "?";
@@ -237,7 +282,7 @@ async function querySingleApi(apiKey: string, apiDefinition: any, barcode: strin
           name,
           brand: product.brands || undefined,
           categoryId: mapToAppCategory(apiKey, product.categories, name),
-          barcode,
+          barcode: barcodeCandidate,
           sourceApi: apiKey,
           imageUrl: product.image_url || product.image_front_url || undefined,
         };
@@ -255,7 +300,7 @@ async function querySingleApi(apiKey: string, apiDefinition: any, barcode: strin
             name,
             brand: item.brand || undefined,
             categoryId: mapToAppCategory(apiKey, item.category, name),
-            barcode,
+            barcode: barcodeCandidate,
             sourceApi: apiKey,
             imageUrl: Array.isArray(item.images) && item.images.length > 0 ? item.images[0] : undefined,
             priceRange,
@@ -263,7 +308,7 @@ async function querySingleApi(apiKey: string, apiDefinition: any, barcode: strin
         }
       }
     } else if (apiKey === "open_library") {
-      const key = `ISBN:${barcode}`;
+      const key = `ISBN:${barcodeCandidate}`;
       if (data && data[key]) {
         const book = data[key];
         const name = (book.title || "").trim();
@@ -274,52 +319,336 @@ async function querySingleApi(apiKey: string, apiDefinition: any, barcode: strin
             name,
             brand: publisher,
             categoryId: "juguetes",
-            barcode,
+            barcode: barcodeCandidate,
             sourceApi: apiKey,
             imageUrl: coverUrl,
           };
         }
       }
-    } else if (apiKey === "open_fda") {
-      if (data && Array.isArray(data.results) && data.results.length > 0) {
-        const drug = data.results[0];
-        const name = (drug.generic_name || drug.brand_name || "").trim();
+    } else if (apiKey === "access_gudid") {
+      if (data && data.gudid && data.gudid.device) {
+        const device = data.gudid.device;
+        const name = (device.brandName || device.deviceDescription || "").trim();
         if (name) {
           return {
             name,
-            brand: drug.labeler_name || undefined,
-            categoryId: "medicamentos",
-            barcode,
+            brand: device.companyName || undefined,
+            categoryId: "insumos_medicos",
+            barcode: barcodeCandidate,
             sourceApi: apiKey,
           };
         }
       }
+    } else if (apiKey.startsWith("openfda_")) {
+      if (data && Array.isArray(data.results) && data.results.length > 0) {
+        const item = data.results[0];
+        const name = (item.generic_name || item.brand_name || item.brand_name_base || item.description || "").trim();
+        if (name) {
+          return {
+            name,
+            brand: item.labeler_name || item.company_name || undefined,
+            categoryId: apiKey.includes("drugs") ? "medicamentos" : "insumos_medicos",
+            barcode: barcodeCandidate,
+            sourceApi: apiKey,
+          };
+        }
+      }
+    } else if (apiKey === "cima_medicamentos") {
+      if (data && Array.isArray(data.resultados) && data.resultados.length > 0) {
+        const med = data.resultados[0];
+        const name = (med.nombre || "").trim();
+        if (name) {
+          return {
+            name,
+            brand: med.labtitular || undefined,
+            categoryId: "medicamentos",
+            barcode: barcodeCandidate,
+            sourceApi: apiKey,
+            imageUrl: Array.isArray(med.fotos) && med.fotos.length > 0 ? med.fotos[0].url : undefined,
+          };
+        }
+      }
+    } else if (apiKey === "brocade") {
+      const name = (data.name || "").trim();
+      if (name) {
+        return {
+          name,
+          brand: data.brand || undefined,
+          categoryId: mapToAppCategory(apiKey, data.category, name),
+          barcode: barcodeCandidate,
+          sourceApi: apiKey,
+          imageUrl: data.image || undefined,
+        };
+      }
     }
   } catch (error) {
-    console.warn(`[BarcodeSearch] Falló consulta a API ${apiKey}:`, error);
+    console.warn(`[BarcodeSearch] Falló consulta a API ${apiKey} con candidato ${barcodeCandidate}:`, error);
   }
 
   return null;
 }
 
+export function cleanAndSummarizeProductName(rawTitle: string): string {
+  if (!rawTitle) return "";
+
+  let name = rawTitle
+    .replace(/<[^>]+>/g, "")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&")
+    .replace(/&#x27;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // 1. Quitar prefijos descriptivos (Descripción, Producto, Nombre, Comprar, Precio de, Detalle)
+  name = name.replace(/^(?:descripci[óo]n|producto|nombre|comprar|precio de|detalle de|venta de|art[íi]culo|medicamento)\s*:?\s*/i, "");
+
+  // 2. Si contiene migas de pan (bread crumbs) como 'Inicio > Bienestar > Alivio > Difenac 100mg'
+  if (name.includes(">")) {
+    const segments = name.split(">").map((s) => s.trim()).filter(Boolean);
+    if (segments.length > 0) {
+      name = segments[segments.length - 1];
+    }
+  }
+
+  // 3. Quitar sufijos de metadatos o e-commerce (' A DOMICILIO Principio activo:', ' EAN:', ' Impuesto:')
+  const metaTriggers = [
+    " a domicilio",
+    " principio activo:",
+    " ean:",
+    " sku:",
+    " código:",
+    " codigo:",
+    " impuesto:",
+    " envío",
+    " envio",
+    " precio:",
+    " exento",
+  ];
+  for (const meta of metaTriggers) {
+    const idx = name.toLowerCase().indexOf(meta);
+    if (idx > 3) {
+      name = name.slice(0, idx).trim();
+    }
+  }
+
+  // 4. Cortar en verbos o definiciones enciclopédicas (' se usa para', ' es un', ' actúa bloqueando')
+  const descTriggers = [
+    " es un ",
+    " es una ",
+    " es el ",
+    " es la ",
+    " que se utiliza ",
+    " se usa para ",
+    " se utiliza para ",
+    " utilizado para ",
+    " indicado para ",
+    " actúa bloqueando ",
+    " sirve para ",
+    " contiene ",
+    " ayuda a ",
+  ];
+  for (const trigger of descTriggers) {
+    const idx = name.toLowerCase().indexOf(trigger);
+    if (idx > 2) {
+      name = name.slice(0, idx).trim();
+    }
+  }
+
+  name = name.replace(/^(?:el|la|los|las)\s+/i, "");
+
+  // 5. Si tiene sufijos de tienda con pipe (|)
+  if (name.includes("|")) {
+    name = name.split("|")[0].trim();
+  }
+
+  // Si tiene guion separando tienda al final (ej. 'Difenac 100mg - Dollder' o 'Loratadina - Farmatodo')
+  const storeKeywords = [
+    "farmatodo",
+    "locatel",
+    "farmadon",
+    "farmago",
+    "farmavida",
+    "mercadolibre",
+    "amazon",
+    "ebay",
+    "walmart",
+    "dollder",
+    "procaps",
+    "calox",
+  ];
+  if (name.includes(" - ")) {
+    const parts = name.split(" - ");
+    const lastPartLower = parts[parts.length - 1].toLowerCase();
+    if (storeKeywords.some((k) => lastPartLower.includes(k)) || parts[parts.length - 1].length < 15) {
+      name = parts[0].trim();
+    }
+  }
+
+  // 6. Acortar si supera los 48 caracteres, cortando limpiamente en el último espacio
+  if (name.length > 48) {
+    const sub = name.slice(0, 48);
+    const lastSpace = sub.lastIndexOf(" ");
+    if (lastSpace > 18) {
+      name = sub.slice(0, lastSpace).trim();
+    } else {
+      name = sub.trim();
+    }
+  }
+
+  if (!name) return "";
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+async function queryWebSearchFallback(barcodeCandidate: string): Promise<ApiProductMatch | null> {
+  try {
+    const response = await fetchWithRetryAndTimeout(
+      `https://html.duckduckgo.com/html/?q=${encodeURIComponent(barcodeCandidate)}`,
+      {
+        method: "GET",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+        },
+      },
+      8.0,
+      1,
+      1.5,
+    );
+
+    if (!response.ok) return null;
+    const html = await response.text();
+
+    // Intentar extraer PRIMERO el título de la página (result__a), ya que los snippets suelen ser párrafos largos
+    const titleMatch =
+      html.match(/<a[^>]+class="result__a"[^>]*>([\s\S]*?)<\/a>/i) ||
+      html.match(/<h2 class="result__title">\s*<a[^>]*>([\s\S]*?)<\/a>/i) ||
+      html.match(/<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/i);
+
+    if (titleMatch && titleMatch[1]) {
+      const cleanTitle = cleanAndSummarizeProductName(titleMatch[1]);
+
+      if (cleanTitle.length > 3 && !/^\d+$/.test(cleanTitle)) {
+        const lower = cleanTitle.toLowerCase();
+        let cat: CategoryId = "comida";
+        if (
+          lower.includes("mg") ||
+          lower.includes("ml") ||
+          lower.includes("tab") ||
+          lower.includes("caps") ||
+          lower.includes("jarabe") ||
+          lower.includes("loratadina") ||
+          lower.includes("metformina") ||
+          lower.includes("eutirox") ||
+          lower.includes("paracetamol") ||
+          lower.includes("ibuprofeno") ||
+          lower.includes("acetaminofen") ||
+          lower.includes("farmac") ||
+          lower.includes("tableta") ||
+          lower.includes("comprimido") ||
+          lower.includes("difenac") ||
+          lower.includes("diclofenac") ||
+          lower.includes("aflamax")
+        ) {
+          cat = "medicamentos";
+        } else if (
+          lower.includes("gasa") ||
+          lower.includes("jeringa") ||
+          lower.includes("guante") ||
+          lower.includes("cateter") ||
+          lower.includes("quirurgic") ||
+          lower.includes("alcohol") ||
+          lower.includes("desinfect") ||
+          lower.includes("sanitiz") ||
+          lower.includes("limpi") ||
+          lower.includes("algodon") ||
+          lower.includes("venda")
+        ) {
+          cat = "insumos_medicos";
+        } else if (
+          lower.includes("talla") ||
+          lower.includes("camisa") ||
+          lower.includes("pantalon") ||
+          lower.includes("zapato")
+        ) {
+          cat = "ropa";
+        }
+
+        return {
+          name: cleanTitle,
+          categoryId: cat,
+          barcode: barcodeCandidate,
+          sourceApi: "web_search_fallback",
+        };
+      }
+    }
+  } catch (error) {
+    console.warn(`[BarcodeSearch] Falló búsqueda web de Nivel 3 para candidato ${barcodeCandidate}:`, error);
+  }
+  return null;
+}
+
 export async function searchBarcodePublicApis(barcode: string): Promise<ApiProductMatch[]> {
   const cleanBarcode = barcode.trim().replace(/[- ]/g, "");
+  const candidates = getBarcodeCandidates(cleanBarcode);
   const apis = apiConfig.apis || {};
 
   const authorizedApis = Object.entries(apis).filter(([_, definition]) => {
-    return shouldQueryApi(cleanBarcode, definition.routing_rules);
+    return shouldQueryApi(cleanBarcode, (definition as any).routing_rules);
   });
 
-  const promises = authorizedApis.map(([key, definition]) => querySingleApi(key, definition, cleanBarcode));
-  const results = await Promise.all(promises);
+  // Nivel 1: APIs 100% abiertas sin límite diario de peticiones
+  const tier1Apis = authorizedApis.filter(([_, def]) => !(def as any).rate_limiting);
+  // Nivel 2: APIs con cuotas de uso (ej. upcitemdb_trial) como respaldo final
+  const tier2Apis = authorizedApis.filter(([_, def]) => !!(def as any).rate_limiting);
 
-  const validResults = results.filter((r): r is ApiProductMatch => r !== null && !!r.name);
+  // En Nivel 1, consultamos TODAS las APIs con TODOS los candidatos (12 y 13 dígitos) en simultáneo
+  const tier1Promises: Promise<ApiProductMatch | null>[] = [];
+  for (const [key, def] of tier1Apis) {
+    for (const candidate of candidates) {
+      tier1Promises.push(querySingleApiWithCandidate(key, def, candidate));
+    }
+  }
 
-  // Deduplicación inteligente por nombre
+  const tier1Results = await Promise.all(tier1Promises);
+  let validResults = tier1Results.filter((r): r is ApiProductMatch => r !== null && !!r.name);
+
+  // Si las APIs sin límite no arrojaron ninguna coincidencia, consultamos las APIs con cuota (Nivel 2)
+  if (validResults.length === 0 && tier2Apis.length > 0) {
+    console.log("[BarcodeSearch] Sin coincidencias en Nivel 1. Consultando APIs de Nivel 2 (con cuota)...");
+    for (const [key, def] of tier2Apis) {
+      for (const candidate of candidates) {
+        const match = await querySingleApiWithCandidate(key, def, candidate);
+        if (match && match.name) {
+          validResults.push(match);
+          break; // Detenemos los candidatos para proteger la cuota
+        }
+      }
+    }
+  }
+
+  // Nivel 3: Si Niveles 1 y 2 fallan, realizamos búsqueda web ligera HTML para catálogos locales/farmacias de LatAm
+  if (validResults.length === 0) {
+    console.log("[BarcodeSearch] Sin coincidencias en Niveles 1 y 2. Consultando Nivel 3 (Búsqueda Web)...");
+    for (const candidate of candidates) {
+      const match = await queryWebSearchFallback(candidate);
+      if (match && match.name) {
+        validResults.push(match);
+        break;
+      }
+    }
+  }
+
+  // Deduplicación y normalización final inteligente
   const uniqueMatches: ApiProductMatch[] = [];
   const seenNames = new Set<string>();
 
   for (const match of validResults) {
+    match.name = cleanAndSummarizeProductName(match.name);
+    if (!match.name || match.name.length < 3) continue;
+
     const normalized = match.name.toLowerCase().trim();
     if (!seenNames.has(normalized)) {
       seenNames.add(normalized);

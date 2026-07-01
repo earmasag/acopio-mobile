@@ -52,17 +52,18 @@
       }
     },
     "open_products_facts": {
-      "base_url": "https://world.openproductsfacts.org/api/v2/product/{barcode}.json",
+      "base_url": "https://world.openproductsfacts.org/api/v3/product/{barcode}.json",
       "method": "GET",
       "headers": {
         "User-Agent": "BuscadorCodigoBarras/1.0 (soporte@buscadorbarras.com)"
       },
       "routing_rules": {
-        "allowed_categories": ["general_merchandise"],
+        "allowed_categories": ["ropa", "juguetes", "insumos_medicos"],
         "excluded_prefixes": ["978", "979"]
       },
       "optimization": {
-        "use_fields_filter": false
+        "use_fields_filter": true,
+        "fields": ["product_name", "brands", "categories", "image_url"]
       }
     },
     "upcitemdb_trial": {
@@ -90,15 +91,60 @@
       "routing_rules": {
         "required_prefixes": ["978", "979"],
         "allowed_categories": ["books"]
+      }
     },
-    "open_fda": {
-      "base_url": "https://api.fda.gov/drug/ndc.json?search=packaging.package_ndc:\"{barcode}\"",
+    "access_gudid": {
+      "base_url": "https://accessgudid.nlm.nih.gov/api/v2/devices/lookup.json?di={barcode}",
       "method": "GET",
       "headers": {
         "Accept": "application/json"
       },
       "routing_rules": {
-        "allowed_categories": ["medicine"],
+        "allowed_categories": ["insumos_medicos"],
+        "excluded_prefixes": ["978", "979"]
+      }
+    },
+    "openfda_drugs": {
+      "base_url": "https://api.fda.gov/drug/ndc.json?api_key=3WhFZ4zLAx1tgRYrnzHcpqtLvPKDVls4ePqQfLIn&search={barcode}",
+      "method": "GET",
+      "headers": {
+        "Accept": "application/json"
+      },
+      "routing_rules": {
+        "allowed_categories": ["medicamentos"],
+        "excluded_prefixes": ["978", "979"]
+      }
+    },
+    "openfda_devices": {
+      "base_url": "https://api.fda.gov/device/udi.json?api_key=3WhFZ4zLAx1tgRYrnzHcpqtLvPKDVls4ePqQfLIn&search={barcode}",
+      "method": "GET",
+      "headers": {
+        "Accept": "application/json"
+      },
+      "routing_rules": {
+        "allowed_categories": ["insumos_medicos"],
+        "excluded_prefixes": ["978", "979"]
+      }
+    },
+    "cima_medicamentos": {
+      "base_url": "https://cima.aemps.es/cima/rest/medicamentos?cn={barcode}",
+      "method": "GET",
+      "headers": {
+        "Accept": "application/json"
+      },
+      "routing_rules": {
+        "allowed_categories": ["medicamentos"],
+        "excluded_prefixes": ["978", "979"]
+      }
+    },
+    "brocade": {
+      "base_url": "https://www.brocade.io/api/items/{barcode}",
+      "method": "GET",
+      "headers": {
+        "Accept": "application/json"
+      },
+      "routing_rules": {
+        "allowed_categories": ["all"],
         "excluded_prefixes": ["978", "979"]
       }
     }
