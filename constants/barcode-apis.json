@@ -90,6 +90,16 @@
       "routing_rules": {
         "required_prefixes": ["978", "979"],
         "allowed_categories": ["books"]
+    },
+    "open_fda": {
+      "base_url": "https://api.fda.gov/drug/ndc.json?search=packaging.package_ndc:\"{barcode}\"",
+      "method": "GET",
+      "headers": {
+        "Accept": "application/json"
+      },
+      "routing_rules": {
+        "allowed_categories": ["medicine"],
+        "excluded_prefixes": ["978", "979"]
       }
     }
   }

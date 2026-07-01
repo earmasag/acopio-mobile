@@ -280,6 +280,20 @@ async function querySingleApi(apiKey: string, apiDefinition: any, barcode: strin
           };
         }
       }
+    } else if (apiKey === "open_fda") {
+      if (data && Array.isArray(data.results) && data.results.length > 0) {
+        const drug = data.results[0];
+        const name = (drug.generic_name || drug.brand_name || "").trim();
+        if (name) {
+          return {
+            name,
+            brand: drug.labeler_name || undefined,
+            categoryId: "medicamentos",
+            barcode,
+            sourceApi: apiKey,
+          };
+        }
+      }
     }
   } catch (error) {
     console.warn(`[BarcodeSearch] Falló consulta a API ${apiKey}:`, error);
