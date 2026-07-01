@@ -1,5 +1,6 @@
 import apiConfig from "@/constants/barcode-apis.json";
 import type { CategoryId } from "@/constants/categories";
+import { fetchProductFromAcopioDb, saveProductToAcopioDb } from "@/lib/acopio-api";
 
 export type ApiProductMatch = {
   name: string;
@@ -342,7 +343,7 @@ async function querySingleApiWithCandidate(apiKey: string, apiDefinition: any, b
     } else if (apiKey.startsWith("openfda_")) {
       if (data && Array.isArray(data.results) && data.results.length > 0) {
         const item = data.results[0];
-        const name = (item.generic_name || item.brand_name || item.brand_name_base || item.description || "").trim();
+        const name = (item.brand_name || item.brand_name_base || item.generic_name || item.description || "").trim();
         if (name) {
           return {
             name,
@@ -698,6 +699,13 @@ export async function searchBarcodePublicApis(barcode: string): Promise<ApiProdu
   }
 
   const searchPromise = (async () => {
+    // Nivel 0: Consulta instantánea al catálogo local de nuestra propia base de datos (Render)
+    const acopioMatch = await fetchProductFromAcopioDb(cleanBarcode);
+    if (acopioMatch) {
+      acopioMatch.name = cleanAndSummarizeProductName(acopioMatch.name);
+      return [acopioMatch];
+    }
+
     const candidates = getBarcodeCandidates(cleanBarcode);
     const apis = apiConfig.apis || {};
 
@@ -762,6 +770,14 @@ export async function searchBarcodePublicApis(barcode: string): Promise<ApiProdu
         seenNames.add(normalized);
         uniqueMatches.push(match);
       }
+    }
+
+    // Cache-Aside: si encontramos el producto en APIs externas o web, lo guardamos en nuestra BD propia de Render
+    if (uniqueMatches.length > 0) {
+      void saveProductToAcopioDb({
+        ...uniqueMatches[0],
+        barcode: cleanBarcode,
+      });
     }
 
     return uniqueMatches;

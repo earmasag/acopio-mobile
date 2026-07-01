@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { KeyboardAwareScrollScreen, useKeyboardForm } from "@/components/keyboard";
 import { AddManualItemForm } from "@/components/pack/add-manual-item-form";
 import { PackItemList } from "@/components/pack/item-list";
+import { syncPackOrderToBackend } from "@/lib/acopio-api";
 import { usePackOrderStore } from "@/stores/pack-order-store";
 import { shortUuid, type ManualItemInput, type PackOrder } from "@/types/pack";
 
@@ -59,18 +60,36 @@ export default function PackTallyScreen() {
     );
   }
 
+  function confirmSyncOrder() {
+    if (!order) return;
+    Alert.alert(
+      "Sellar y Sincronizar Caja",
+      "¿Deseas registrar esta caja y sus artículos en la base de datos central de Acopio?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Sincronizar",
+          onPress: async () => {
+            const result = await syncPackOrderToBackend(order);
+            if (result.success) {
+              Alert.alert(
+                "¡Sincronización Exitosa!",
+                "La caja y todos sus artículos fueron enviados y registrados correctamente en la base de datos central."
+              );
+            } else {
+              Alert.alert("Aviso de Sincronización", result.message);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   return (
     <KeyboardAwareScrollScreen contentContainerClassName="px-5 pt-4 grow">
       <PackTallyContent
         order={order}
         onBack={() => router.back()}
-        onGenerateQr={() => {
-          focusOrder(packageId);
-          router.push({
-            pathname: "/pack/generate-qr",
-            params: { orderId: packageId },
-          });
-        }}
         onScanBox={() => {
           focusOrder(packageId);
           router.push({
@@ -86,6 +105,7 @@ export default function PackTallyScreen() {
           });
         }}
         onDelete={confirmDelete}
+        onSyncOrder={confirmSyncOrder}
         onAddItem={(input) => void addManualItem(packageId, input)}
         onUpdateQuantity={(itemId, quantity) => {
           if (quantity < 1) {
@@ -103,10 +123,10 @@ export default function PackTallyScreen() {
 type PackTallyContentProps = {
   order: PackOrder;
   onBack: () => void;
-  onGenerateQr: () => void;
   onScanBox: () => void;
   onScanBarcode: () => void;
   onDelete: () => void;
+  onSyncOrder: () => void;
   onAddItem: (input: ManualItemInput) => void;
   onUpdateQuantity: (itemId: string, quantity: number) => void;
   onRemoveItem: (itemId: string) => void;
@@ -115,10 +135,10 @@ type PackTallyContentProps = {
 function PackTallyContent({
   order,
   onBack,
-  onGenerateQr,
   onScanBox,
   onScanBarcode,
   onDelete,
+  onSyncOrder,
   onAddItem,
   onUpdateQuantity,
   onRemoveItem,
@@ -161,21 +181,11 @@ function PackTallyContent({
       <View className="mb-6 flex-row gap-2">
         <Pressable
           className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-white py-3 active:bg-emerald-50"
-          onPress={onGenerateQr}
-        >
-          <MaterialIcons name="qr-code" size={18} color="#1B4332" />
-          <Text className="text-xs font-semibold text-acopio-accent">
-            {order.packageUuid ? "Ver QR" : "Generar QR"}
-          </Text>
-        </Pressable>
-
-        <Pressable
-          className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-white py-3 active:bg-emerald-50"
           onPress={onScanBox}
         >
           <MaterialIcons name="qr-code-scanner" size={18} color="#1B4332" />
           <Text className="text-xs font-semibold text-acopio-accent">
-            {order.packageUuid ? "Cambiar QR" : "Escanear QR"}
+            {order.packageUuid ? "Cambiar QR" : "Vincular QR de Caja"}
           </Text>
         </Pressable>
 
@@ -203,6 +213,20 @@ function PackTallyContent({
       </View>
 
       <AddManualItemForm onAdd={handleAddItem} />
+
+      {order.items.length > 0 && (
+        <View className="mt-6 mb-8">
+          <Pressable
+            className="flex-row items-center justify-center gap-2 rounded-2xl bg-emerald-800 py-4 shadow-md active:bg-emerald-900"
+            onPress={onSyncOrder}
+          >
+            <MaterialIcons name="cloud-upload" size={22} color="#FFFFFF" />
+            <Text className="text-base font-bold text-white">
+              Sellar y Sincronizar Caja en Servidor
+            </Text>
+          </Pressable>
+        </View>
+      )}
     </>
   );
 }

@@ -1,7 +1,7 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -37,6 +37,7 @@ export default function ScanBarcodeScreen() {
 
   const addManualItem = usePackOrderStore((state) => state.addManualItem);
 
+  const isProcessingRef = useRef<boolean>(false);
   const [scanned, setScanned] = useState(false);
   const [searching, setSearching] = useState(false);
   const [manualBarcode, setManualBarcode] = useState("");
@@ -45,6 +46,12 @@ export default function ScanBarcodeScreen() {
   const [showMultipleModal, setShowMultipleModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
+
+  function resetScanner() {
+    isProcessingRef.current = false;
+    setScanned(false);
+    setCurrentBarcode(null);
+  }
 
   // Registro manual rápido
   const [regName, setRegName] = useState("");
@@ -103,15 +110,16 @@ export default function ScanBarcodeScreen() {
   }
 
   async function handleProcessBarcode(rawCode: string) {
-    if (scanned || searching) return;
+    if (scanned || searching || isProcessingRef.current) return;
     const trimmed = rawCode.trim();
     if (!trimmed) return;
 
+    isProcessingRef.current = true;
     const validation = validateBarcode(trimmed);
     if (!validation.isValid) {
       setScanned(true);
       Alert.alert("Código no estándar", `${validation.message}\n¿Deseas intentar buscarlo de todos modos?`, [
-        { text: "Cancelar", style: "cancel", onPress: () => setScanned(false) },
+        { text: "Cancelar", style: "cancel", onPress: () => resetScanner() },
         {
           text: "Buscar igual",
           onPress: () => {
@@ -149,8 +157,7 @@ export default function ScanBarcodeScreen() {
         setSuccessBanner(`✅ Agregado: ${match.name}`);
         setTimeout(() => {
           setSuccessBanner(null);
-          setScanned(false);
-          setCurrentBarcode(null);
+          resetScanner();
         }, 1600);
       } else if (results.length > 1) {
         setMatches(results);
@@ -163,10 +170,7 @@ export default function ScanBarcodeScreen() {
             {
               text: "Reintentar escaneo",
               style: "cancel",
-              onPress: () => {
-                setScanned(false);
-                setCurrentBarcode(null);
-              },
+              onPress: () => resetScanner(),
             },
             {
               text: "Registrar artículo",
@@ -182,7 +186,7 @@ export default function ScanBarcodeScreen() {
     } catch (err) {
       setSearching(false);
       Alert.alert("Error de red", "Ocurrió un problema al consultar las APIs públicas.", [
-        { text: "OK", onPress: () => setScanned(false) },
+        { text: "OK", onPress: () => resetScanner() },
       ]);
     }
   }
@@ -202,8 +206,7 @@ export default function ScanBarcodeScreen() {
     setSuccessBanner(`✅ Agregado: ${match.name}`);
     setTimeout(() => {
       setSuccessBanner(null);
-      setScanned(false);
-      setCurrentBarcode(null);
+      resetScanner();
     }, 1500);
   }
 
@@ -261,8 +264,7 @@ export default function ScanBarcodeScreen() {
     setSuccessBanner("✅ Artículo registrado y agregado");
     setTimeout(() => {
       setSuccessBanner(null);
-      setScanned(false);
-      setCurrentBarcode(null);
+      resetScanner();
     }, 1500);
   }
 
@@ -375,8 +377,7 @@ export default function ScanBarcodeScreen() {
                 onPress={() => {
                   setShowMultipleModal(false);
                   setMatches([]);
-                  setScanned(false);
-                  setCurrentBarcode(null);
+                  resetScanner();
                 }}
               >
                 <Text className="font-semibold text-acopio-muted">Cancelar</Text>
@@ -524,8 +525,7 @@ export default function ScanBarcodeScreen() {
                   className="flex-1 items-center rounded-xl border border-gray-300 py-3"
                   onPress={() => {
                     setShowRegisterModal(false);
-                    setScanned(false);
-                    setCurrentBarcode(null);
+                    resetScanner();
                   }}
                 >
                   <Text className="font-semibold text-acopio-muted">Cancelar</Text>

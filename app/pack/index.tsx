@@ -71,9 +71,7 @@ export default function PackHomeScreen() {
   }
 
   function handleScanNewBox() {
-    const order = createOrder();
-    setSelectedOrderId(order.id);
-    openScanBox(order.id);
+    router.push({ pathname: "/pack/scan-box" });
   }
 
   function handleGenerateNewBoxQr() {
