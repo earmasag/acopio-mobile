@@ -114,42 +114,85 @@ export async function saveProductToAcopioDb(match: ApiProductMatch): Promise<voi
   }
 }
 
+export async function validateCentroAcopio(campCode: string): Promise<{ valid: boolean; campName?: string }> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/camps/validate/${encodeURIComponent(campCode)}`, {
+      method: "GET",
+      headers: { "Accept": "application/json" },
+    });
+    if (!response.ok) return { valid: false };
+    const data = await response.json();
+    return { valid: data.valid, campName: data.camp_name };
+  } catch (error) {
+    console.error("[AcopioDB] Error validating camp code:", error);
+    return { valid: false };
+  }
+}
+
 /**
  * Sincroniza los eventos logísticos (armado/cierre de cajas) con la API central.
  */
 export async function syncPackOrderToBackend(
   order: PackOrder,
-  centroAcopioId: string = "CENTRO-AC-01",
+  centroAcopioId: string,
   operatorName: string = "Voluntario Móvil"
 ): Promise<{ success: boolean; message: string; response?: any }> {
   try {
-    const syncId = order.id;
+    const syncId = crypto.randomUUID();
     const packageUuid = order.packageUuid || `CAJA-${order.id.slice(0, 8).toUpperCase()}`;
+    const timestamp = order.updatedAt || new Date().toISOString();
+
+    const events = [];
+
+    // 1. Evento de inicio
+    events.push({
+      event_id: crypto.randomUUID(),
+      package_uuid: packageUuid,
+      action: "PACK_START",
+      device_timestamp: order.createdAt || timestamp,
+      operator_name: operatorName,
+      payload: {},
+    });
+
+    // 2. Eventos por cada ítem
+    for (const item of order.items) {
+      const payload: any = {
+        category_id: mapCategoryToNumericId(item.categoryId),
+        quantity: item.quantity,
+        item_name: item.name,
+      };
+      
+      if (item.barcode) payload.barcode = item.barcode;
+      
+      if (item.categoryId === "ropa") {
+        payload.garment_type_id = item.garmentType || "desconocido";
+        payload.size = item.size || "Única";
+      }
+
+      events.push({
+        event_id: crypto.randomUUID(),
+        package_uuid: packageUuid,
+        action: "PACK_ADD_ITEM",
+        device_timestamp: timestamp,
+        operator_name: operatorName,
+        payload,
+      });
+    }
+
+    // 3. Evento de sellado
+    events.push({
+      event_id: crypto.randomUUID(),
+      package_uuid: packageUuid,
+      action: "PACK_SEAL",
+      device_timestamp: timestamp,
+      operator_name: operatorName,
+      payload: {},
+    });
 
     const payload = {
       sync_id: syncId,
       centro_acopio_id: centroAcopioId,
-      events: [
-        {
-          event_id: `${order.id}-SEAL`,
-          package_uuid: packageUuid,
-          action: "PACKAGE_SEALED",
-          device_timestamp: order.updatedAt || new Date().toISOString(),
-          operator_name: operatorName,
-          payload: {
-            status: order.status,
-            itemCount: order.items.length,
-            totalUnits: order.items.reduce((acc, item) => acc + item.quantity, 0),
-            items: order.items.map((item) => ({
-              id: item.id,
-              name: item.name,
-              categoryId: item.categoryId,
-              quantity: item.quantity,
-              barcode: item.barcode || null,
-            })),
-          },
-        },
-      ],
+      events,
     };
 
     const response = await fetch(`${API_BASE_URL}/api/v1/sync/`, {
@@ -164,7 +207,7 @@ export async function syncPackOrderToBackend(
     if (response.ok) {
       const data = await response.json();
       console.log("[AcopioDB] Sincronización de caja exitosa:", data);
-      return { success: true, message: "Caja sincronizada con el servidor de Acopio.", response: data };
+      return { success: true, message: "Caja sincronizada con el servidor.", response: data };
     } else {
       const errBody = await response.text().catch(() => "");
       console.error(`[AcopioDB] Error de sincronización (HTTP ${response.status}):`, errBody);
@@ -172,6 +215,6 @@ export async function syncPackOrderToBackend(
     }
   } catch (error: any) {
     console.error("[AcopioDB] Error de red al sincronizar caja:", error);
-    return { success: false, message: "No se pudo conectar con el servidor. Se guardó localmente." };
+    return { success: false, message: "No se pudo conectar con el servidor." };
   }
 }

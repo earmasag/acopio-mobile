@@ -5,6 +5,7 @@ import type { PackOrder } from "@/types/pack";
 const LEGACY_ACTIVE_ORDER_KEY = "@acopio/pack-active-order";
 const IN_PROGRESS_ORDERS_KEY = "@acopio/pack-in-progress-orders";
 const DRAFT_ORDERS_KEY = "@acopio/pack-draft-orders";
+const SEALED_ORDERS_KEY = "@acopio/pack-sealed-orders";
 
 export async function loadInProgressOrders(): Promise<PackOrder[]> {
   const raw = await AsyncStorage.getItem(IN_PROGRESS_ORDERS_KEY);
@@ -34,4 +35,17 @@ export async function loadDraftOrders(): Promise<PackOrder[]> {
 
 export async function saveDraftOrders(orders: PackOrder[]): Promise<void> {
   await AsyncStorage.setItem(DRAFT_ORDERS_KEY, JSON.stringify(orders));
+}
+
+export async function loadSealedOrders(): Promise<PackOrder[]> {
+  const raw = await AsyncStorage.getItem(SEALED_ORDERS_KEY);
+  if (!raw) return [];
+  return (JSON.parse(raw) as PackOrder[]).map((order) => ({
+    ...order,
+    status: "sealed" as const,
+  }));
+}
+
+export async function saveSealedOrders(orders: PackOrder[]): Promise<void> {
+  await AsyncStorage.setItem(SEALED_ORDERS_KEY, JSON.stringify(orders));
 }

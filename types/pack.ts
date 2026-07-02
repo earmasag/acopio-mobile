@@ -22,7 +22,8 @@ export type ManualItemInput = {
   size?: string;
 };
 
-export type PackOrderStatus = "in_progress" | "draft";
+export type PackOrderStatus = "in_progress" | "draft" | "sealed";
+export type SyncStatus = "pending" | "synced" | "error";
 
 export type PackOrder = {
   id: string;
@@ -31,6 +32,9 @@ export type PackOrder = {
   createdAt: string;
   updatedAt: string;
   status: PackOrderStatus;
+  syncStatus?: SyncStatus;
+  syncedAt?: string;
+  syncError?: string;
 };
 
 export function createEmptyOrder(status: PackOrderStatus = "in_progress"): PackOrder {
@@ -84,4 +88,19 @@ export function createManualLineItem(input: ManualItemInput): PackLineItem {
     garmentType: input.garmentType,
     size: input.size,
   };
+}
+
+export function mapCategoryIdToNumeric(categoryId: string): number {
+  switch (categoryId) {
+    case "comida": return 1;
+    case "agua": return 2;
+    case "insumos_medicos": return 3;
+    case "herramientas": return 4;
+    case "ropa": return 5;
+    case "juguetes": return 6;
+    case "mascotas": return 7;
+    case "higiene": return 8;
+    case "otros": return 9;
+    default: return 9;
+  }
 }

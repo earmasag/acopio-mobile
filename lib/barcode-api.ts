@@ -487,9 +487,9 @@ export function cleanAndSummarizeProductName(rawTitle: string): string {
     }
   }
 
-  // 6. Acortar si supera los 48 caracteres, cortando limpiamente en el último espacio
-  if (name.length > 48) {
-    const sub = name.slice(0, 48);
+  // 6. Acortar si supera los 80 caracteres, cortando limpiamente en el último espacio
+  if (name.length > 80) {
+    const sub = name.slice(0, 80);
     const lastSpace = sub.lastIndexOf(" ");
     if (lastSpace > 18) {
       name = sub.slice(0, lastSpace).trim();

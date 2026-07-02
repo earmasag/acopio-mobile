@@ -3,8 +3,10 @@ import { create } from "zustand";
 import {
   loadDraftOrders,
   loadInProgressOrders,
+  loadSealedOrders,
   saveDraftOrders,
   saveInProgressOrders,
+  saveSealedOrders,
 } from "@/lib/pack-order-storage";
 import { createEmptyOrder, createManualLineItem, type ManualItemInput, type PackOrder } from "@/types/pack";
 
@@ -12,6 +14,7 @@ type PackOrderStore = {
   hydrated: boolean;
   inProgressOrders: PackOrder[];
   drafts: PackOrder[];
+  sealedOrders: PackOrder[];
   focusedOrderId: string | null;
   hydrate: () => Promise<void>;
   getOrder: (orderId: string) => PackOrder | undefined;
@@ -33,6 +36,9 @@ type PackOrderStore = {
     quantity: number,
   ) => Promise<void>;
   removeItem: (orderId: string, itemId: string) => Promise<void>;
+  sealOrder: (orderId: string) => Promise<void>;
+  markSynced: (orderId: string, syncedAt: string) => Promise<void>;
+  markSyncError: (orderId: string, error: string) => Promise<void>;
 };
 
 function touch(order: PackOrder): PackOrder {
@@ -51,26 +57,30 @@ export const usePackOrderStore = create<PackOrderStore>((set, get) => ({
   hydrated: false,
   inProgressOrders: [],
   drafts: [],
+  sealedOrders: [],
   focusedOrderId: null,
 
   hydrate: async () => {
-    const [inProgressOrders, drafts] = await Promise.all([
+    const [inProgressOrders, drafts, sealedOrders] = await Promise.all([
       loadInProgressOrders(),
       loadDraftOrders(),
+      loadSealedOrders(),
     ]);
     set({
       inProgressOrders,
       drafts,
+      sealedOrders,
       focusedOrderId: inProgressOrders[0]?.id ?? null,
       hydrated: true,
     });
   },
 
   getOrder: (orderId) => {
-    const { inProgressOrders, drafts } = get();
+    const { inProgressOrders, drafts, sealedOrders } = get();
     return (
       inProgressOrders.find((order) => order.id === orderId) ??
-      drafts.find((order) => order.id === orderId)
+      drafts.find((order) => order.id === orderId) ??
+      sealedOrders.find((order) => order.id === orderId)
     );
   },
 
@@ -191,7 +201,8 @@ export const usePackOrderStore = create<PackOrderStore>((set, get) => ({
     const name = input.name.trim();
     if (!name || input.quantity < 1) return;
 
-    if (input.categoryId === "ropa" && (!input.garmentType || !input.size)) {
+    const isManualEntry = !input.source || input.source === "manual";
+    if (isManualEntry && input.categoryId === "ropa" && (!input.garmentType || !input.size)) {
       return;
     }
 
@@ -236,5 +247,49 @@ export const usePackOrderStore = create<PackOrderStore>((set, get) => ({
     );
     set({ inProgressOrders: next, focusedOrderId: orderId });
     await persistInProgress(next);
+  },
+
+  sealOrder: async (orderId) => {
+    const { inProgressOrders, sealedOrders } = get();
+    const order = inProgressOrders.find((item) => item.id === orderId);
+    if (!order) return;
+
+    const sealedOrder = touch({
+      ...order,
+      status: "sealed",
+      syncStatus: "pending",
+    });
+    const nextInProgress = inProgressOrders.filter((item) => item.id !== orderId);
+    const nextSealed = [sealedOrder, ...sealedOrders];
+
+    set({
+      inProgressOrders: nextInProgress,
+      sealedOrders: nextSealed,
+      focusedOrderId: nextInProgress[0]?.id ?? null,
+    });
+    await persistInProgress(nextInProgress);
+    await saveSealedOrders(nextSealed);
+  },
+
+  markSynced: async (orderId, syncedAt) => {
+    const { sealedOrders } = get();
+    const nextSealed = sealedOrders.map((order) =>
+      order.id === orderId
+        ? { ...order, syncStatus: "synced" as const, syncedAt, syncError: undefined }
+        : order
+    );
+    set({ sealedOrders: nextSealed });
+    await saveSealedOrders(nextSealed);
+  },
+
+  markSyncError: async (orderId, error) => {
+    const { sealedOrders } = get();
+    const nextSealed = sealedOrders.map((order) =>
+      order.id === orderId
+        ? { ...order, syncStatus: "error" as const, syncError: error }
+        : order
+    );
+    set({ sealedOrders: nextSealed });
+    await saveSealedOrders(nextSealed);
   },
 }));

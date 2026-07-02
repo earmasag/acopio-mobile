@@ -6,8 +6,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { KeyboardAwareScrollScreen, useKeyboardForm } from "@/components/keyboard";
 import { AddManualItemForm } from "@/components/pack/add-manual-item-form";
 import { PackItemList } from "@/components/pack/item-list";
-import { syncPackOrderToBackend } from "@/lib/acopio-api";
+import { processSyncQueue } from "@/lib/sync-engine";
 import { usePackOrderStore } from "@/stores/pack-order-store";
+import { useSettingsStore } from "@/stores/settings-store";
 import { shortUuid, type ManualItemInput, type PackOrder } from "@/types/pack";
 
 export default function PackTallyScreen() {
@@ -19,8 +20,10 @@ export default function PackTallyScreen() {
         state.drafts.find((entry) => entry.id === orderId))
       : undefined,
   );
+  const centroAcopioId = useSettingsStore((state) => state.centroAcopioId);
   const focusOrder = usePackOrderStore((state) => state.focusOrder);
   const deleteOrder = usePackOrderStore((state) => state.deleteOrder);
+  const sealOrder = usePackOrderStore((state) => state.sealOrder);
   const addManualItem = usePackOrderStore((state) => state.addManualItem);
   const updateItemQuantity = usePackOrderStore((state) => state.updateItemQuantity);
   const removeItem = usePackOrderStore((state) => state.removeItem);
@@ -62,23 +65,26 @@ export default function PackTallyScreen() {
 
   function confirmSyncOrder() {
     if (!order) return;
+    
+    if (!centroAcopioId) {
+      Alert.alert(
+        "Falta Centro de Acopio",
+        "Por favor configura tu código de Centro de Acopio en la pantalla principal antes de sellar cajas."
+      );
+      return;
+    }
+
     Alert.alert(
-      "Sellar y Sincronizar Caja",
-      "¿Deseas registrar esta caja y sus artículos en la base de datos central de Acopio?",
+      "Sellar Caja",
+      "¿Deseas sellar esta caja? Se pondrá en cola para sincronizar en segundo plano.",
       [
         { text: "Cancelar", style: "cancel" },
         {
-          text: "Sincronizar",
+          text: "Sellar",
           onPress: async () => {
-            const result = await syncPackOrderToBackend(order);
-            if (result.success) {
-              Alert.alert(
-                "¡Sincronización Exitosa!",
-                "La caja y todos sus artículos fueron enviados y registrados correctamente en la base de datos central."
-              );
-            } else {
-              Alert.alert("Aviso de Sincronización", result.message);
-            }
+            await sealOrder(order.id);
+            void processSyncQueue();
+            router.back();
           },
         },
       ]
