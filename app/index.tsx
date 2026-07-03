@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { Modal, Pressable, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 
 import { ROLES } from "@/constants/modes";
 import { validateCentroAcopio } from "@/lib/acopio-api";
@@ -60,6 +62,37 @@ export default function HomeScreen() {
   function handleLogout() {
     void setCentroAcopioCredentials("");
     setShowModal(false);
+  }
+
+  async function handleDownloadQR() {
+    if (!centerCode) {
+      alert("Configura tu centro de acopio primero.");
+      return;
+    }
+    try {
+      const url = `${process.env.EXPO_PUBLIC_API_BASE_URL || "https://acopio-api.onrender.com"}/api/v1/qrcodes/pdf?pages=1`;
+      const fileUri = `${FileSystem.documentDirectory}acopio_cajas_qr.pdf`;
+      
+      const downloadResult = await FileSystem.downloadAsync(url, fileUri);
+      
+      if (downloadResult.status === 200) {
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(downloadResult.uri, {
+            mimeType: "application/pdf",
+            dialogTitle: "Etiquetas QR Acopio",
+            UTI: "com.adobe.pdf",
+          });
+        } else {
+          alert("Compartir no está disponible en este dispositivo.");
+        }
+      } else {
+        alert("Error al descargar el PDF de QRs.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Hubo un error descargando el archivo.");
+    }
   }
 
   const shortHash = centerCode.length > 12
@@ -144,6 +177,30 @@ export default function HomeScreen() {
             </Pressable>
           ))}
         </View>
+
+        <Text className="mt-6 mb-3 text-sm font-semibold uppercase tracking-wide text-acopio-muted">
+          Herramientas
+        </Text>
+        
+        <Pressable
+          className="flex-row items-center justify-between rounded-2xl bg-white p-4 shadow-sm border border-gray-100 active:opacity-90"
+          onPress={handleDownloadQR}
+        >
+          <View className="flex-row items-center gap-4">
+            <View className="h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+              <MaterialIcons name="print" size={24} color="#4B5563" />
+            </View>
+            <View>
+              <Text className="text-lg font-bold text-acopio-text">
+                Imprimir QRs
+              </Text>
+              <Text className="text-sm leading-5 text-acopio-muted">
+                Descargar e imprimir etiquetas de cajas
+              </Text>
+            </View>
+          </View>
+          <MaterialIcons name="download" size={24} color="#52796F" />
+        </Pressable>
 
         <Text className="mt-auto pt-8 text-center text-xs text-acopio-muted">
           Select the role according to the task you will perform in the field
