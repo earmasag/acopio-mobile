@@ -72,7 +72,7 @@ export default function HomeScreen() {
     }
     try {
       const numPages = parseInt(pdfPages, 10) || 1;
-      const url = `${process.env.EXPO_PUBLIC_API_BASE_URL || "https://acopio-api.onrender.com"}/api/v1/qrcodes/pdf?pages=${numPages}&center_name=${encodeURIComponent(centerCode)}`;
+      const url = `${process.env.EXPO_PUBLIC_API_BASE_URL || "https://acopio-api.onrender.com"}/api/v1/qrcodes/pdf?pages=${numPages}&center_code=${encodeURIComponent(centerCode)}`;
       const fileUri = `${FileSystem.documentDirectory}acopio_cajas_qr.pdf`;
       
       const downloadResult = await FileSystem.downloadAsync(url, fileUri);
