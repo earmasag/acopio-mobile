@@ -151,6 +151,7 @@ export default function PackHomeScreen() {
             iconClass="bg-emerald-700"
             onPress={handleNewOrder}
           />
+          {/* 
           <PackActionCard
             title="Generar Etiqueta QR"
             description="Crea e imprime un QR único para identificar la caja física"
@@ -158,6 +159,7 @@ export default function PackHomeScreen() {
             iconClass="bg-emerald-800"
             onPress={handleGenerateNewBoxQr}
           />
+          */}
           <PackActionCard
             title="Paquetes guardados"
             description={

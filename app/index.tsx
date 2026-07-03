@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Modal, Pressable, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 
 import { ROLES } from "@/constants/modes";
@@ -21,6 +21,7 @@ export default function HomeScreen() {
   const [inputValue, setInputValue] = useState("");
   const [isValidating, setIsValidating] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [pdfPages, setPdfPages] = useState("1");
 
   useEffect(() => {
     void hydrate();
@@ -70,7 +71,8 @@ export default function HomeScreen() {
       return;
     }
     try {
-      const url = `${process.env.EXPO_PUBLIC_API_BASE_URL || "https://acopio-api.onrender.com"}/api/v1/qrcodes/pdf?pages=1`;
+      const numPages = parseInt(pdfPages, 10) || 1;
+      const url = `${process.env.EXPO_PUBLIC_API_BASE_URL || "https://acopio-api.onrender.com"}/api/v1/qrcodes/pdf?pages=${numPages}&center_name=${encodeURIComponent(centerCode)}`;
       const fileUri = `${FileSystem.documentDirectory}acopio_cajas_qr.pdf`;
       
       const downloadResult = await FileSystem.downloadAsync(url, fileUri);
@@ -182,25 +184,33 @@ export default function HomeScreen() {
           Herramientas
         </Text>
         
-        <Pressable
-          className="flex-row items-center justify-between rounded-2xl bg-white p-4 shadow-sm border border-gray-100 active:opacity-90"
-          onPress={handleDownloadQR}
-        >
-          <View className="flex-row items-center gap-4">
-            <View className="h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-              <MaterialIcons name="print" size={24} color="#4B5563" />
-            </View>
+        <View className="mb-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+          <View className="mb-4 flex-row items-center justify-between">
             <View>
-              <Text className="text-lg font-bold text-acopio-text">
+              <Text className="text-base font-bold text-acopio-text">
                 Imprimir QRs
               </Text>
-              <Text className="text-sm leading-5 text-acopio-muted">
-                Descargar e imprimir etiquetas de cajas
+              <Text className="text-xs text-acopio-muted">
+                Páginas a generar (6 QRs por página)
               </Text>
             </View>
+            <TextInput
+              className="w-16 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-center text-base font-bold text-acopio-text"
+              keyboardType="numeric"
+              value={pdfPages}
+              onChangeText={setPdfPages}
+              maxLength={3}
+            />
           </View>
-          <MaterialIcons name="download" size={24} color="#52796F" />
-        </Pressable>
+
+          <Pressable
+            className="flex-row items-center justify-center rounded-xl bg-acopio-accent p-3 active:bg-emerald-700"
+            onPress={handleDownloadQR}
+          >
+            <MaterialIcons name="print" size={20} color="#FFFFFF" />
+            <Text className="ml-2 font-bold text-white">Descargar PDF</Text>
+          </Pressable>
+        </View>
 
         <Text className="mt-auto pt-8 text-center text-xs text-acopio-muted">
           Select the role according to the task you will perform in the field
