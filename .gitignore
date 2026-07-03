@@ -1,44 +1,53 @@
-# dependencies
+# Dependencies
 node_modules/
 .pnpm-store/
 
-# Expo
+# Expo & Metro
 .expo/
 dist/
 web-build/
 expo-env.d.ts
+.metro-health-check*
 
-# Native
-.kotlin/
-*.orig.*
+# Environment & Secrets
+.env
+.env*.local
+*.pem
+
+# Build Artifacts & Binaries
+*.apk
+*.aab
 *.jks
 *.p8
 *.p12
 *.key
 *.mobileprovision
+*.orig.*
 
-# Metro
-.metro-health-check*
+# Android Native Build Folders
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/**/build/
+android/**/.cxx/
+android/**/.externalNativeBuild/
+.kotlin/
 
-# debug
+# iOS Native Build Folders
+ios/Pods/
+ios/build/
+ios/*.xcworkspace/xcuserdata/
+ios/*.xcodeproj/xcuserdata/
+
+# Debug & Logs
 npm-debug.*
 yarn-debug.*
 yarn-error.*
 pnpm-debug.*
 
-# macOS
+# OS & Editor
 .DS_Store
-*.pem
-
-# local env files
-.env
-.env*.local
-
-# typescript
+Thumbs.db
 *.tsbuildinfo
-
-app-example
-
-# generated native folders
-/ios
-/android
+app-example/

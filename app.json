@@ -19,8 +19,6 @@
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.earmasag.acopiomobile"
@@ -50,6 +48,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "0d9edec1-8e75-4e87-8c27-f962dcf68bfc"
+      }
+    },
+    "owner": "acopio"
   }
 }
