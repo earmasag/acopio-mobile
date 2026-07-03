@@ -20,7 +20,7 @@ export default function PackTallyScreen() {
         state.drafts.find((entry) => entry.id === orderId))
       : undefined,
   );
-  const centroAcopioId = useSettingsStore((state) => state.centroAcopioId);
+  const centerCode = useSettingsStore((s) => s.centerCode);
   const focusOrder = usePackOrderStore((state) => state.focusOrder);
   const deleteOrder = usePackOrderStore((state) => state.deleteOrder);
   const sealOrder = usePackOrderStore((state) => state.sealOrder);
@@ -66,10 +66,18 @@ export default function PackTallyScreen() {
   function confirmSyncOrder() {
     if (!order) return;
     
-    if (!centroAcopioId) {
+    if (!centerCode) {
       Alert.alert(
-        "Falta Centro de Acopio",
-        "Por favor configura tu código de Centro de Acopio en la pantalla principal antes de sellar cajas."
+        "Faltan Credenciales",
+        "Por favor configura tu ID de Centro de Acopio en la pantalla principal antes de sellar cajas."
+      );
+      return;
+    }
+
+    if (!order.packageUuid) {
+      Alert.alert(
+        "Falta QR de Caja",
+        "Debes vincular el QR de la caja antes de sellarla."
       );
       return;
     }

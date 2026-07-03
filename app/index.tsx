@@ -11,10 +11,9 @@ import { useSettingsStore } from "@/stores/settings-store";
 export default function HomeScreen() {
   const router = useRouter();
   const hydrated = useSettingsStore((s) => s.hydrated);
-  const centroAcopioId = useSettingsStore((s) => s.centroAcopioId);
-  const campName = useSettingsStore((s) => s.campName);
+  const centerCode = useSettingsStore((s) => s.centerCode);
   const hydrate = useSettingsStore((s) => s.hydrate);
-  const setCentroAcopioId = useSettingsStore((s) => s.setCentroAcopioId);
+  const setCentroAcopioCredentials = useSettingsStore((s) => s.setCentroAcopioCredentials);
 
   const [showModal, setShowModal] = useState(false);
   const [inputValue, setInputValue] = useState("");
@@ -25,62 +24,67 @@ export default function HomeScreen() {
     void hydrate();
   }, [hydrate]);
 
-  // Mostrar el modal automáticamente si no hay hash configurado
+  // Show the modal automatically if no hash is configured
   useEffect(() => {
-    if (hydrated && !centroAcopioId) {
+    if (hydrated && !centerCode) {
       setInputValue("");
       setErrorMsg("");
       setShowModal(true);
     }
-  }, [hydrated, centroAcopioId]);
+  }, [hydrated, centerCode]);
 
   async function handleSaveHash() {
     const trimmed = inputValue.trim();
-    if (!trimmed) return;
-    
-    setIsValidating(true);
-    setErrorMsg("");
+    if (!trimmed) {
+      setErrorMsg("You must enter the credentials.");
+      return;
+    }
     
     const result = await validateCentroAcopio(trimmed);
     setIsValidating(false);
     
     if (result.valid) {
-      void setCentroAcopioId(trimmed, result.campName);
+      void setCentroAcopioCredentials(trimmed, result.campName);
       setShowModal(false);
     } else {
-      setErrorMsg("Código de centro no reconocido o inactivo.");
+      setErrorMsg("Center code not recognized or inactive.");
     }
   }
 
   function handleEditHash() {
-    setInputValue(centroAcopioId);
+    setInputValue(centerCode);
     setErrorMsg("");
     setShowModal(true);
   }
 
-  const shortHash = centroAcopioId.length > 12
-    ? `${centroAcopioId.slice(0, 12)}…`
-    : centroAcopioId;
+  function handleLogout() {
+    void setCentroAcopioCredentials("");
+    setShowModal(false);
+  }
+
+  const shortHash = centerCode.length > 12
+    ? `${centerCode.slice(0, 12)}…`
+    : centerCode;
 
   return (
     <SafeAreaView className="flex-1 bg-acopio-bg">
       <View className="flex-1 px-5 pb-8 pt-4">
-        {/* Encabezado */}
+        {/* Header */}
         <View className="mb-8 overflow-hidden rounded-3xl bg-acopio-accent px-6 py-7 shadow-sm">
           <View className="mb-3 self-start rounded-full bg-white/15 px-3 py-1">
             <Text className="text-xs font-semibold uppercase tracking-widest text-white/90">
-              Emergencia
+              Emergency
             </Text>
           </View>
           <Text className="text-3xl font-bold text-white">Acopio QR's</Text>
           <Text className="mt-2 text-base leading-6 text-white/80">
-            Trazabilidad de donaciones con etiquetas QR
+            QR Donation Traceability
           </Text>
         </View>
 
-        {/* Badge del Centro de Acopio */}
+        {/* Header: Connection Status and Hash */}
         <Pressable
-          className="mb-6 flex-row items-center gap-3 rounded-2xl border border-emerald-200 bg-white p-4 active:bg-emerald-50"
+          className="mb-6 flex-row items-center gap-3 rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm active:bg-emerald-50"
           onPress={handleEditHash}
         >
           <View className="h-10 w-10 items-center justify-center rounded-xl bg-emerald-100">
@@ -88,34 +92,29 @@ export default function HomeScreen() {
           </View>
           <View className="flex-1">
             <Text className="text-xs font-semibold uppercase text-acopio-muted">
-              Centro de Acopio
+              Collection Center
             </Text>
-            {centroAcopioId ? (
-              <>
+            {centerCode ? (
+              <View>
                 <Text className="mt-0.5 font-mono text-sm font-bold text-acopio-text">
                   {shortHash}
                 </Text>
-                {campName ? (
-                  <Text className="text-xs text-emerald-700 font-medium">
-                    {campName}
-                  </Text>
-                ) : null}
-              </>
+              </View>
             ) : (
               <Text className="mt-0.5 text-sm italic text-red-500">
-                Sin configurar — toca para ingresar
+                Unconfigured — tap to enter
               </Text>
             )}
           </View>
           <MaterialIcons
-            name={centroAcopioId ? "edit" : "add-circle-outline"}
+            name={centerCode ? "edit" : "add-circle-outline"}
             size={20}
             color="#52796F"
           />
         </Pressable>
 
         <Text className="mb-4 text-sm font-semibold uppercase tracking-wide text-acopio-muted">
-          Modo de operación
+          Operation Mode
         </Text>
 
         {/* Roles */}
@@ -147,27 +146,27 @@ export default function HomeScreen() {
         </View>
 
         <Text className="mt-auto pt-8 text-center text-xs text-acopio-muted">
-          Selecciona el rol según la tarea que realizarás en campo
+          Select the role according to the task you will perform in the field
         </Text>
       </View>
 
-      {/* Modal para ingresar hash de Centro de Acopio */}
+      {/* Modal to enter Collection Center hash */}
       <Modal visible={showModal} transparent animationType="slide">
         <View className="flex-1 justify-end bg-black/50">
           <View className="rounded-t-3xl bg-white px-6 pb-8 pt-6">
             <Text className="text-xl font-bold text-acopio-text">
-              Centro de Acopio
+              Collection Center
             </Text>
             <Text className="mt-1 mb-5 text-sm leading-5 text-acopio-muted">
-              Ingresa el código de tu centro de acopio. Pídeselo al coordinador.
+              Enter your collection center code. Ask your coordinator.
             </Text>
 
             <Text className="mb-2 text-xs font-semibold uppercase text-acopio-muted">
-              Código de Centro
+              Center Code
             </Text>
             <TextInput
-              className="mb-5 rounded-xl border border-gray-200 bg-acopio-bg px-4 py-3 font-mono text-base text-acopio-text"
-              placeholder="Ej. centro-ucab-1"
+              className="mb-4 rounded-xl border border-gray-200 bg-acopio-bg px-4 py-3 font-mono text-base text-acopio-text"
+              placeholder="Ej. UCAB-gy-0012"
               value={inputValue}
               onChangeText={setInputValue}
               autoCapitalize="none"
@@ -183,23 +182,33 @@ export default function HomeScreen() {
             ) : null}
 
             <View className="flex-row gap-3">
-              {centroAcopioId ? (
+              {centerCode ? (
+                <Pressable
+                  className="flex-1 items-center rounded-xl border border-red-300 py-3"
+                  onPress={handleLogout}
+                >
+                  <Text className="font-semibold text-red-600">
+                    Log out
+                  </Text>
+                </Pressable>
+              ) : null}
+              {centerCode ? (
                 <Pressable
                   className="flex-1 items-center rounded-xl border border-gray-300 py-3"
                   onPress={() => setShowModal(false)}
                 >
                   <Text className="font-semibold text-acopio-muted">
-                    Cancelar
+                    Cancel
                   </Text>
                 </Pressable>
               ) : null}
               <Pressable
-                className={`items-center rounded-xl py-3 ${centroAcopioId ? "flex-1" : "w-full"} ${isValidating ? "bg-emerald-400" : "bg-emerald-700"}`}
+                className={`items-center rounded-xl py-3 ${centerCode ? "flex-1" : "w-full"} ${isValidating ? "bg-emerald-400" : "bg-emerald-700"}`}
                 onPress={handleSaveHash}
                 disabled={isValidating}
               >
                 <Text className="font-semibold text-white">
-                  {isValidating ? "Validando..." : "Guardar"}
+                  {isValidating ? "Validating..." : "Save"}
                 </Text>
               </Pressable>
             </View>

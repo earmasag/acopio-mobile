@@ -1,19 +1,19 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const CENTRO_ACOPIO_ID_KEY = "@acopio/centro-acopio-id";
+const CENTER_CODE_KEY = "@acopio/center-code";
 const CAMP_NAME_KEY = "@acopio/camp-name";
 
-export async function loadCentroAcopioId(): Promise<string | null> {
-  return AsyncStorage.getItem(CENTRO_ACOPIO_ID_KEY);
+export async function loadCenterCode(): Promise<string | null> {
+  return AsyncStorage.getItem(CENTER_CODE_KEY);
 }
 
-export async function saveCentroAcopioId(id: string): Promise<void> {
-  const trimmed = id.trim();
+export async function saveCenterCode(code: string): Promise<void> {
+  const trimmed = code.trim();
   if (!trimmed) {
-    await AsyncStorage.removeItem(CENTRO_ACOPIO_ID_KEY);
+    await AsyncStorage.removeItem(CENTER_CODE_KEY);
     return;
   }
-  await AsyncStorage.setItem(CENTRO_ACOPIO_ID_KEY, trimmed);
+  await AsyncStorage.setItem(CENTER_CODE_KEY, trimmed);
 }
 
 export async function loadCampName(): Promise<string | null> {
@@ -28,3 +28,4 @@ export async function saveCampName(name: string): Promise<void> {
   }
   await AsyncStorage.setItem(CAMP_NAME_KEY, trimmed);
 }
+

@@ -1,73 +1,29 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Alert, Pressable, Text, View, Vibration } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { MaterialIcons } from "@expo/vector-icons";
 
 import { KeyboardAwareScreen, KeyboardAwareTextInput } from "@/components/keyboard";
-
-import { useLoadTripStore } from "@/stores/load-trip-store";
 import { parsePackageQr } from "@/types/pack";
 
-export default function LoadScanBoxScreen() {
+export default function LookupScanScreen() {
   const router = useRouter();
-  const { tripId } = useLocalSearchParams<{ tripId?: string }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [manualUuid, setManualUuid] = useState("");
   const [scanned, setScanned] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const trip = useLoadTripStore((state) =>
-    tripId
-      ? state.inProgressTrips.find((entry) => entry.id === tripId)
-      : undefined,
-  );
-  const addBox = useLoadTripStore((state) => state.addBox);
 
   function assignBox(raw: string) {
-    if (!tripId) return;
-
     const packageUuid = parsePackageQr(raw);
     if (!packageUuid) {
       setScanned(false);
       return;
     }
 
-    const added = addBox(tripId, packageUuid);
-    if (!added) {
-      Alert.alert(
-        "Caja no agregada",
-        "Verifica el código o si ya fue escaneada en este viaje.",
-        [{ text: "OK", onPress: () => setScanned(false) }]
-      );
-      return;
-    }
-
-    // Éxito: Vibrar y mostrar check
-    Vibration.vibrate(100); // 100ms
-    setShowSuccess(true);
-    setManualUuid("");
-    
-    setTimeout(() => {
-      setShowSuccess(false);
-      setScanned(false);
-    }, 500);
-  }
-
-  if (!tripId || !trip) {
-    return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-acopio-bg px-6">
-        <Text className="mb-4 text-center text-acopio-muted">
-          No se encontró la carga seleccionada
-        </Text>
-        <Pressable
-          className="rounded-xl bg-sky-700 px-6 py-3"
-          onPress={() => router.replace("/load")}
-        >
-          <Text className="font-semibold text-white">Ir a carga</Text>
-        </Pressable>
-      </SafeAreaView>
-    );
+    Vibration.vibrate(100);
+    // Navigate directly to the detail view
+    router.replace(`/lookup/${packageUuid}` as any);
   }
 
   if (!permission) {
@@ -86,13 +42,13 @@ export default function LoadScanBoxScreen() {
             Necesitamos acceso a la cámara para escanear el QR de la caja
           </Text>
           <Pressable
-            className="rounded-xl bg-sky-700 px-6 py-3"
+            className="rounded-xl bg-purple-600 px-6 py-3"
             onPress={requestPermission}
           >
             <Text className="font-semibold text-white">Permitir cámara</Text>
           </Pressable>
           <Pressable onPress={() => router.back()}>
-            <Text className="text-sky-700">Volver</Text>
+            <Text className="text-purple-700">Volver</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -119,17 +75,11 @@ export default function LoadScanBoxScreen() {
           <Pressable onPress={() => router.back()} className="self-start py-2">
             <Text className="font-semibold text-white">← Volver</Text>
           </Pressable>
-          <Text className="text-lg font-bold text-white">Escanear caja</Text>
+          <Text className="text-lg font-bold text-white">Consultar Caja</Text>
           <Text className="text-sm text-white/80">
-            Placa {trip.plate} · {trip.boxes.length} caja{trip.boxes.length === 1 ? "" : "s"} escaneada{trip.boxes.length === 1 ? "" : "s"}
+            Escanea el QR para ver el contenido de la caja
           </Text>
         </View>
-
-        {showSuccess && (
-          <View className="absolute right-5 top-5 items-center justify-center rounded-full bg-emerald-500 p-2 shadow-lg">
-            <MaterialIcons name="check" size={28} color="white" />
-          </View>
-        )}
       </View>
 
       <View className="gap-3 bg-white px-5 py-4">
@@ -145,7 +95,7 @@ export default function LoadScanBoxScreen() {
           autoCorrect={false}
         />
         <Pressable
-          className="items-center rounded-xl bg-sky-700 py-3 active:opacity-90"
+          className="items-center rounded-xl bg-purple-600 py-3 active:opacity-90"
           onPress={() => assignBox(manualUuid)}
         >
           <Text className="font-semibold text-white">Usar UUID</Text>

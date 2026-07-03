@@ -1,6 +1,10 @@
 import type { CategoryId } from "@/constants/categories";
 import type { ApiProductMatch } from "@/lib/barcode-api";
 import type { PackOrder } from "@/types/pack";
+import type { LoadTrip } from "@/types/load";
+import type { ReceiveSession } from "@/types/receive";
+import type { ApiPackageResponse } from "@/types/lookup";
+import * as crypto from "expo-crypto";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "https://acopio-api.onrender.com";
 
@@ -114,17 +118,20 @@ export async function saveProductToAcopioDb(match: ApiProductMatch): Promise<voi
   }
 }
 
-export async function validateCentroAcopio(campCode: string): Promise<{ valid: boolean; campName?: string }> {
+export async function validateCentroAcopio(centerCode: string): Promise<{ valid: boolean; campName?: string }> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/camps/validate/${encodeURIComponent(campCode)}`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/centers/me`, {
       method: "GET",
-      headers: { "Accept": "application/json" },
+      headers: { 
+        "Accept": "application/json",
+        "X-Center-Code": centerCode
+      },
     });
     if (!response.ok) return { valid: false };
     const data = await response.json();
-    return { valid: data.valid, campName: data.camp_name };
+    return { valid: true, campName: data.name };
   } catch (error) {
-    console.error("[AcopioDB] Error validating camp code:", error);
+    console.error("[AcopioDB] Error validating center credentials:", error);
     return { valid: false };
   }
 }
@@ -134,12 +141,15 @@ export async function validateCentroAcopio(campCode: string): Promise<{ valid: b
  */
 export async function syncPackOrderToBackend(
   order: PackOrder,
-  centroAcopioId: string,
+  centerCode: string,
   operatorName: string = "Voluntario Móvil"
 ): Promise<{ success: boolean; message: string; response?: any }> {
   try {
     const syncId = crypto.randomUUID();
-    const packageUuid = order.packageUuid || `CAJA-${order.id.slice(0, 8).toUpperCase()}`;
+    const packageUuid = order.packageUuid;
+    if (!packageUuid) {
+      return { success: false, message: "La caja no tiene un QR vinculado." };
+    }
     const timestamp = order.updatedAt || new Date().toISOString();
 
     const events = [];
@@ -191,7 +201,6 @@ export async function syncPackOrderToBackend(
 
     const payload = {
       sync_id: syncId,
-      centro_acopio_id: centroAcopioId,
       events,
     };
 
@@ -200,6 +209,7 @@ export async function syncPackOrderToBackend(
       headers: {
         "Content-Type": "application/json",
         "Accept": "application/json",
+        "X-Center-Code": centerCode,
       },
       body: JSON.stringify(payload),
     });
@@ -215,6 +225,155 @@ export async function syncPackOrderToBackend(
     }
   } catch (error: any) {
     console.error("[AcopioDB] Error de red al sincronizar caja:", error);
+    return { success: false, message: "No se pudo conectar con el servidor." };
+  }
+}
+
+/**
+ * Sincroniza un viaje de carga cerrado hacia el servidor.
+ */
+export async function syncLoadTripToBackend(
+  trip: LoadTrip,
+  centerCode: string,
+  operatorName: string = "Conductor Desconocido"
+): Promise<{ success: boolean; message: string; response?: any }> {
+  try {
+    const syncId = crypto.randomUUID();
+    const timestamp = trip.closedAt || trip.updatedAt || new Date().toISOString();
+    
+    // Si no hay cajas, de todas formas podríamos reportarlo o ignorarlo.
+    // Asumiremos que se sincroniza para limpiar la cola.
+    if (trip.boxes.length === 0) {
+      return { success: true, message: "Viaje vacío, marcado como sincronizado." };
+    }
+
+    const events = trip.boxes.map((box) => ({
+      event_id: crypto.randomUUID(),
+      package_uuid: box.packageUuid,
+      action: "LOAD_SCAN",
+      device_timestamp: box.scannedAt || timestamp,
+      operator_name: operatorName,
+      payload: {
+        plate: trip.plate,
+      },
+    }));
+
+    const payload = {
+      sync_id: syncId,
+      events,
+    };
+
+    const response = await fetch(`${API_BASE_URL}/api/v1/sync/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "X-Center-Code": centerCode,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log("[AcopioDB] Sincronización de viaje exitosa:", data);
+      return { success: true, message: "Viaje sincronizado con el servidor.", response: data };
+    } else {
+      const errBody = await response.text().catch(() => "");
+      console.error(`[AcopioDB] Error de sincronización (HTTP ${response.status}):`, errBody);
+      return { success: false, message: `Error en servidor: HTTP ${response.status}` };
+    }
+  } catch (error: any) {
+    console.error("[AcopioDB] Error de red al sincronizar viaje:", error);
+    return { success: false, message: "No se pudo conectar con el servidor." };
+  }
+}
+
+/**
+ * Sincroniza una sesión de recepción cerrada hacia el servidor.
+ */
+export async function syncReceiveSessionToBackend(
+  session: ReceiveSession,
+  centerCode: string,
+  operatorName: string = "Operador Desconocido"
+): Promise<{ success: boolean; message: string; response?: any }> {
+  try {
+    const syncId = crypto.randomUUID();
+    const timestamp = session.closedAt || session.updatedAt || new Date().toISOString();
+    
+    // Si no hay cajas, de todas formas podríamos reportarlo o ignorarlo.
+    if (session.boxes.length === 0) {
+      return { success: true, message: "Sesión vacía, marcada como sincronizada." };
+    }
+
+    const events = session.boxes.map((box) => ({
+      event_id: crypto.randomUUID(),
+      package_uuid: box.packageUuid,
+      action: "RECEIVE_SCAN",
+      device_timestamp: box.scannedAt || timestamp,
+      operator_name: operatorName,
+      payload: {
+        plate: session.plate,
+      },
+    }));
+
+    const payload = {
+      sync_id: syncId,
+      events,
+    };
+
+    const response = await fetch(`${API_BASE_URL}/api/v1/sync/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "X-Center-Code": centerCode,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log("[AcopioDB] Sincronización de recepción exitosa:", data);
+      return { success: true, message: "Recepción sincronizada con el servidor.", response: data };
+    } else {
+      const errBody = await response.text().catch(() => "");
+      console.error(`[AcopioDB] Error de sincronización (HTTP ${response.status}):`, errBody);
+      return { success: false, message: `Error en servidor: HTTP ${response.status}` };
+    }
+  } catch (error: any) {
+    console.error("[AcopioDB] Error de red al sincronizar recepción:", error);
+    return { success: false, message: "No se pudo conectar con el servidor." };
+  }
+}
+
+/**
+ * Consulta los detalles de una caja específica por su UUID.
+ */
+export async function fetchPackageDetails(
+  uuid: string,
+  centerCode: string
+): Promise<{ success: boolean; data?: ApiPackageResponse; message?: string }> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/packages/${uuid}`, {
+      method: "GET",
+      headers: {
+        "Accept": "application/json",
+        "X-Center-Code": centerCode,
+      },
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return { success: true, data };
+    } else if (response.status === 404) {
+      return { success: false, message: "Caja no encontrada." };
+    } else {
+      const errBody = await response.text().catch(() => "");
+      console.error(`[AcopioDB] Error al buscar caja (HTTP ${response.status}):`, errBody);
+      return { success: false, message: "Error al consultar caja en el servidor." };
+    }
+  } catch (error: any) {
+    console.error("[AcopioDB] Error de red al buscar caja:", error);
     return { success: false, message: "No se pudo conectar con el servidor." };
   }
 }

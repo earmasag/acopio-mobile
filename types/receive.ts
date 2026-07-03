@@ -14,6 +14,8 @@ export type ReceiveSession = {
   createdAt: string;
   updatedAt: string;
   closedAt?: string;
+  syncStatus?: "pending" | "synced" | "error";
+  syncError?: string;
 };
 
 export function normalizePlate(plate: string): string {

@@ -26,6 +26,8 @@ type LoadTripStore = {
   removeBox: (tripId: string, boxId: string) => void;
   closeTrip: (tripId: string) => Promise<void>;
   deleteTrip: (tripId: string) => Promise<void>;
+  markSynced: (tripId: string, syncedAt: string) => Promise<void>;
+  markSyncError: (tripId: string, error: string) => Promise<void>;
 };
 
 function touch(trip: LoadTrip): LoadTrip {
@@ -128,6 +130,7 @@ export const useLoadTripStore = create<LoadTripStore>((set, get) => ({
       status: "closed",
       closedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      syncStatus: "pending",
     };
     const nextClosed = [closedTrip, ...closedTrips];
 
@@ -157,6 +160,38 @@ export const useLoadTripStore = create<LoadTripStore>((set, get) => ({
           : focusedTripId,
     });
     await saveInProgressTrips(nextInProgress);
+    await saveClosedTrips(nextClosed);
+  },
+
+  markSynced: async (tripId: string, syncedAt: string) => {
+    const { closedTrips } = get();
+    const nextClosed = closedTrips.map((t) =>
+      t.id === tripId
+        ? {
+            ...t,
+            syncStatus: "synced" as const,
+            syncError: undefined,
+            updatedAt: syncedAt,
+          }
+        : t
+    );
+    set({ closedTrips: nextClosed });
+    await saveClosedTrips(nextClosed);
+  },
+
+  markSyncError: async (tripId: string, error: string) => {
+    const { closedTrips } = get();
+    const nextClosed = closedTrips.map((t) =>
+      t.id === tripId
+        ? {
+            ...t,
+            syncStatus: "error" as const,
+            syncError: error,
+            updatedAt: new Date().toISOString(),
+          }
+        : t
+    );
+    set({ closedTrips: nextClosed });
     await saveClosedTrips(nextClosed);
   },
 }));

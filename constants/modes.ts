@@ -2,7 +2,7 @@ import type { Href } from "expo-router";
 import type { ComponentProps } from "react";
 import type { MaterialIcons } from "@expo/vector-icons";
 
-export type OperationMode = "pack" | "load" | "receive";
+export type OperationMode = "pack" | "load" | "receive" | "lookup";
 
 export const ROLES: {
   id: OperationMode;
@@ -43,5 +43,15 @@ export const ROLES: {
     step: "Destino",
     cardClass: "border-amber-200 bg-white",
     iconClass: "bg-amber-600",
+  },
+  {
+    id: "lookup",
+    title: "Consultar Caja",
+    description: "Ver detalles y contenido escaneando el QR",
+    route: "/lookup/scan",
+    icon: "search",
+    step: "Cualquiera",
+    cardClass: "border-purple-200 bg-white",
+    iconClass: "bg-purple-600",
   },
 ];

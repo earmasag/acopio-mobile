@@ -26,6 +26,8 @@ type ReceiveSessionStore = {
   removeBox: (sessionId: string, boxId: string) => void;
   closeSession: (sessionId: string) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
+  markSynced: (sessionId: string, syncedAt: string) => Promise<void>;
+  markSyncError: (sessionId: string, error: string) => Promise<void>;
 };
 
 function touch(session: ReceiveSession): ReceiveSession {
@@ -134,6 +136,7 @@ export const useReceiveSessionStore = create<ReceiveSessionStore>((set, get) => 
       status: "closed",
       closedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      syncStatus: "pending",
     };
     const nextClosed = [closedSession, ...closedSessions];
 
@@ -165,6 +168,38 @@ export const useReceiveSessionStore = create<ReceiveSessionStore>((set, get) => 
           : focusedSessionId,
     });
     await saveInProgressSessions(nextInProgress);
+    await saveClosedSessions(nextClosed);
+  },
+
+  markSynced: async (sessionId: string, syncedAt: string) => {
+    const { closedSessions } = get();
+    const nextClosed = closedSessions.map((s) =>
+      s.id === sessionId
+        ? {
+            ...s,
+            syncStatus: "synced" as const,
+            syncError: undefined,
+            updatedAt: syncedAt,
+          }
+        : s
+    );
+    set({ closedSessions: nextClosed });
+    await saveClosedSessions(nextClosed);
+  },
+
+  markSyncError: async (sessionId: string, error: string) => {
+    const { closedSessions } = get();
+    const nextClosed = closedSessions.map((s) =>
+      s.id === sessionId
+        ? {
+            ...s,
+            syncStatus: "error" as const,
+            syncError: error,
+            updatedAt: new Date().toISOString(),
+          }
+        : s
+    );
+    set({ closedSessions: nextClosed });
     await saveClosedSessions(nextClosed);
   },
 }));

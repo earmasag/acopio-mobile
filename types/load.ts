@@ -14,6 +14,8 @@ export type LoadTrip = {
   createdAt: string;
   updatedAt: string;
   closedAt?: string;
+  syncStatus?: "pending" | "synced" | "error";
+  syncError?: string;
 };
 
 /** @deprecated Solo para migración desde `label` */

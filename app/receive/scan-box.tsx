@@ -1,7 +1,8 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Alert, Pressable, Text, View } from "react-native";
+import { Alert, Pressable, Text, View, Vibration } from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { KeyboardAwareScreen, KeyboardAwareTextInput } from "@/components/keyboard";
@@ -15,6 +16,7 @@ export default function ReceiveScanBoxScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [manualUuid, setManualUuid] = useState("");
   const [scanned, setScanned] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const session = useReceiveSessionStore((state) =>
     sessionId
       ? state.inProgressSessions.find((entry) => entry.id === sessionId)
@@ -26,19 +28,30 @@ export default function ReceiveScanBoxScreen() {
     if (!sessionId) return;
 
     const packageUuid = parsePackageQr(raw);
-    if (!packageUuid) return;
+    if (!packageUuid) {
+      setScanned(false);
+      return;
+    }
 
     const added = addBox(sessionId, packageUuid);
     if (!added) {
       Alert.alert(
         "Caja no agregada",
         "Verifica el código o si ya fue escaneada en esta recepción.",
+        [{ text: "OK", onPress: () => setScanned(false) }]
       );
-      setScanned(false);
       return;
     }
 
-    router.back();
+    // Éxito: Vibrar y mostrar check
+    Vibration.vibrate(100);
+    setShowSuccess(true);
+    setManualUuid("");
+
+    setTimeout(() => {
+      setShowSuccess(false);
+      setScanned(false);
+    }, 500);
   }
 
   if (!sessionId || !session) {
@@ -106,11 +119,17 @@ export default function ReceiveScanBoxScreen() {
           <Pressable onPress={() => router.back()} className="self-start py-2">
             <Text className="font-semibold text-white">← Volver</Text>
           </Pressable>
-          <Text className="text-lg font-bold text-white">Escanear caja</Text>
+          <Text className="text-lg font-bold text-white">Escanear caja (Recepción)</Text>
           <Text className="text-sm text-white/80">
-            Placa {session.plate} · confirma la caja al recibirla
+            Placa {session.plate} · {session.boxes.length} caja{session.boxes.length === 1 ? "" : "s"} recibida{session.boxes.length === 1 ? "" : "s"}
           </Text>
         </View>
+
+        {showSuccess && (
+          <View className="absolute right-5 top-5 items-center justify-center rounded-full bg-emerald-500 p-2 shadow-lg">
+            <MaterialIcons name="check" size={28} color="white" />
+          </View>
+        )}
       </View>
 
       <View className="gap-3 bg-white px-5 py-4">
